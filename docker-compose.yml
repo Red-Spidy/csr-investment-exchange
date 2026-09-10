@@ -1,0 +1,20 @@
+services:
+  db:
+    image: pgvector/pgvector:pg16
+    container_name: csr_db
+    environment:
+      POSTGRES_USER: csr
+      POSTGRES_PASSWORD: csr
+      POSTGRES_DB: csr_exchange
+    ports:
+      - "5433:5432"
+    volumes:
+      - csr_pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U csr -d csr_exchange"]
+      interval: 3s
+      timeout: 3s
+      retries: 20
+
+volumes:
+  csr_pgdata:
