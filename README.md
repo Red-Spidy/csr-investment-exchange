@@ -31,7 +31,8 @@ cp .env.example .env          # then set ANTHROPIC_API_KEY
 | `db/seed.sql` | Deterministic demo scenario. |
 | `ml/nlp/` | Claude extraction, embeddings, DB persistence. |
 | `ml/eval/` | Metric implementations + their hand-worked tests. |
-| `ml/impact/`, `ml/fraud/` | XGBoost / Isolation Forest (not yet built). |
+| `ml/impact/` | Sector impact base rates + the XGBoost experiment they replaced. |
+| `ml/fraud/` | Isolation Forest (not yet built). |
 | `api/`, `web/` | FastAPI + React (not yet built). |
 
 ## The Advanced SQL core
@@ -102,13 +103,20 @@ than trusted.
 Built and verified:
 
 - Full schema, triggers, transactions, window views, pgvector matching
-- 10/10 DB assertions pass, from a clean `reset` and against real embeddings
+- 17/17 DB assertions pass, from a clean `reset` and against real embeddings
 - Two-session concurrency test passes
 - Embeddings + DB persistence, verified end-to-end against a live database
 - Eval metric modules, verified against hand-computed values
+- Impact base-rate model over 12,752 IEG-rated World Bank projects, in SQL
 
-Not yet built: XGBoost impact model, Isolation Forest fraud model, FastAPI
-layer, React frontend, corpus generation.
+Not yet built: Isolation Forest fraud model, composite risk grading, pipeline
+runner, FastAPI layer, React frontend.
+
+The XGBoost impact model was built, measured and **deliberately replaced**: on a
+temporal split it explained ~3% of outcome variance and no configuration beat
+predicting the mean, so what ships is the sector base-rate model the data
+actually supports. The measurements, including a leakage trap that inflates R²
+from 0.03 to 0.50, are in `docs/impact-model-findings.md`.
 
 **Not yet verified: the live Claude API call path.** No `ANTHROPIC_API_KEY` was
 available in this environment, so `extract_proposal()` has been exercised only
