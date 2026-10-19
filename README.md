@@ -8,19 +8,12 @@ Companion implementation for the ADV_SQL review deck.
 ```bash
 docker compose up -d          # or: make up
 make migrate seed             # schema + demo scenario
-make test                     # DB assertions + ML eval checks
+make test                     # DB assertions
 make psql                     # poke around
 ```
 
 Postgres listens on **localhost:5433** (5433, not 5432, to avoid colliding with
 a local install).
-
-For the NLP module you also need Python deps and an API key:
-
-```bash
-python3 -m venv .venv && .venv/bin/pip install -r requirements.txt
-cp .env.example .env          # then set ANTHROPIC_API_KEY
-```
 
 ## Layout
 
@@ -29,10 +22,7 @@ cp .env.example .env          # then set ANTHROPIC_API_KEY
 | `db/migrations/` | Schema, triggers, window views, pgvector matching. Applied in filename order. |
 | `db/tests/` | Assertion tests. Each `RAISE`s on failure, so a non-zero exit is a real regression. |
 | `db/seed.sql` | Deterministic demo scenario. |
-| `ml/nlp/` | Claude extraction, embeddings, DB persistence. |
-| `ml/eval/` | Metric implementations + their hand-worked tests. |
-| `ml/impact/` | Sector impact base rates + the XGBoost experiment they replaced. |
-| `ml/fraud/` | Isolation Forest (not yet built). |
+| `ml/` | BERT, XGBoost and Isolation Forest, trained on synthetic project data (not yet built). |
 | `api/`, `web/` | FastAPI + React (not yet built). |
 
 ## The Advanced SQL core
@@ -61,63 +51,22 @@ The ledger (`fund_transactions`) is append-only, enforced by trigger. It blocks
 cascade deletes too: you cannot erase funding history by deleting the company
 that owns it.
 
-## The NLP module
-
-One Claude call per proposal does field extraction **and** SDG classification —
-they read the same text, so splitting them doubles cost for nothing. Nothing is
-fine-tuned.
-
-- `ml/nlp/schemas.py` — the Pydantic schema Claude fills. Almost every field is
-  `| None`: the prompt instructs the model to emit null for anything the
-  proposal does not state, because a hallucinated beneficiary count flows into
-  the impact forecast and then into a funding decision.
-- `ml/nlp/prompts.py` — system prompt + few-shot examples, versioned. One
-  example is deliberately a near-empty proposal, to teach abstention.
-- `ml/nlp/extract.py` — `messages.parse()` with cache breakpoints on the stable
-  prefix, a Batch API path for the corpus run (half price), and a rule-based
-  fallback for when the API is unreachable.
-- `ml/nlp/embed.py` — MiniLM (384-dim) over *canonicalised* text, not the raw
-  proposal. Both sides of the match are canonicalised the same way.
-
-**The LLM is never in the fund-release path.** It produces evidence; a human
-sets a verification flag; a SQL trigger moves money.
-
-### Evaluation without training
-
-You do not need to train a model to evaluate one — you need a labelled test set.
-
-- `ml/eval/metrics.py` — per-SDG precision/recall/F1, micro/macro-F1, confusion
-  pairs. Run against the OSDG Community Dataset as a held-out test set.
-- `ml/eval/extraction_eval.py` — field accuracy and, the headline number,
-  **hallucination rate**: how often the model filled a field the proposal never
-  stated. Abstention is scored separately from error, because for this pipeline
-  they have very different costs.
-
-Both metric modules have hand-worked tests (`test_metrics.py`,
-`test_extraction_eval.py`) where every expected value is computed by hand in a
-comment. These numbers go in the report, so the arithmetic is verified rather
-than trusted.
+**No model is in the fund-release path.** Models produce evidence; a human sets
+a verification flag; a SQL trigger moves money.
 
 ## Status
 
 Built and verified:
 
 - Full schema, triggers, transactions, window views, pgvector matching
-- 17/17 DB assertions pass, from a clean `reset` and against real embeddings
+- 10/10 DB assertions pass from a clean `reset`
 - Two-session concurrency test passes
-- Embeddings + DB persistence, verified end-to-end against a live database
-- Eval metric modules, verified against hand-computed values
-- Impact base-rate model over 12,752 IEG-rated World Bank projects, in SQL
 
-Not yet built: Isolation Forest fraud model, composite risk grading, pipeline
-runner, FastAPI layer, React frontend.
+Not yet built: synthetic training datasets, NLP & SDG extraction (BERT), impact
+prediction (XGBoost), fraud detection (Isolation Forest), composite risk
+grading, pipeline runner, FastAPI layer, React frontend.
 
-The XGBoost impact model was built, measured and **deliberately replaced**: on a
-temporal split it explained ~3% of outcome variance and no configuration beat
-predicting the mean, so what ships is the sector base-rate model the data
-actually supports. The measurements, including a leakage trap that inflates R²
-from 0.03 to 0.50, are in `docs/impact-model-findings.md`.
-
-**Not yet verified: the live Claude API call path.** No `ANTHROPIC_API_KEY` was
-available in this environment, so `extract_proposal()` has been exercised only
-through its fallback branch. Set a key and run one proposal before relying on it.
+Until the models exist, the extraction, impact, fraud and risk-grade rows in
+`db/seed.sql` are hand-written placeholders, and its embeddings are synthetic
+topic vectors. They keep the matching demo reproducible; the trained models
+will replace them.

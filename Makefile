@@ -1,7 +1,7 @@
 DB_URL ?= postgresql://csr:csr@localhost:5433/csr_exchange
 PSQL   := docker exec -i csr_db psql -U csr -d csr_exchange -v ON_ERROR_STOP=1
 
-.PHONY: up down migrate reset seed test-db test-ml test demo psql
+.PHONY: up down migrate reset seed test-db test demo psql
 
 up:
 	docker compose up -d
@@ -27,11 +27,7 @@ test-db:
 	@for f in db/tests/*.sql; do echo "== $$f"; $(PSQL) -f - < $$f; done
 	@echo "== db/tests/06_concurrency.sh"; bash db/tests/06_concurrency.sh
 
-test-ml:
-	.venv/bin/python ml/eval/test_metrics.py
-	.venv/bin/python ml/eval/test_extraction_eval.py
-
-test: test-db test-ml
+test: test-db
 
 demo: reset seed
 	@echo "demo scenario ready"
