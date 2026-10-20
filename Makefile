@@ -1,7 +1,7 @@
 DB_URL ?= postgresql://csr:csr@localhost:5433/csr_exchange
 PSQL   := docker exec -i csr_db psql -U csr -d csr_exchange -v ON_ERROR_STOP=1
 
-.PHONY: up down migrate reset seed test-db test-ml test demo psql datasets
+.PHONY: up down migrate reset seed test-db test-ml test-api test demo psql datasets api web
 
 up:
 	docker compose up -d
@@ -30,7 +30,16 @@ test-db:
 test-ml:
 	.venv/bin/python -m pytest -q
 
-test: test-db test-ml
+test-api:
+	.venv/bin/python -m pytest -c api/pytest.ini api/tests -q
+
+test: test-db test-ml test-api
+
+api:
+	DATABASE_URL=$(DB_URL) CSR_ALLOW_RESET=1 .venv/bin/python -m uvicorn app.main:app --app-dir api --reload --reload-dir api --port 8000
+
+web:
+	cd web && npm run dev
 
 demo: reset seed
 	@echo "demo scenario ready"

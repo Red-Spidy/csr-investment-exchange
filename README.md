@@ -8,11 +8,16 @@ Companion implementation for the ADV_SQL review deck.
 ```bash
 docker compose up -d          # or: make up
 make migrate seed             # schema + demo scenario
-make test                     # DB assertions
+make test                     # DB assertions, API tests, ML tests
 make psql                     # poke around
 
-cd web && npm install && npm run dev   # frontend on http://localhost:5173
+make api                                # FastAPI on http://localhost:8000
+cd web && npm install && npm run dev    # frontend on http://localhost:5173
 ```
+
+The frontend looks for the API when it starts. If it answers, every number comes
+from Postgres. If it does not, the frontend falls back to an in-browser copy of
+the database rules, and the sidebar says which one you are looking at.
 
 Postgres listens on **localhost:5433** (5433, not 5432, to avoid colliding with
 a local install).
@@ -25,8 +30,8 @@ a local install).
 | `db/tests/` | Assertion tests. Each `RAISE`s on failure, so a non-zero exit is a real regression. |
 | `db/seed.sql` | Deterministic demo scenario. |
 | `ml/` | BERT, XGBoost and Isolation Forest, trained on synthetic project data (not yet built). |
-| `web/` | React + TypeScript frontend. Runs today on an in-browser demo store that ports the rules in `db/migrations/004` and `005`. `web/src/data/api.ts` is the contract a FastAPI layer would implement. |
-| `api/` | FastAPI (not yet built). |
+| `api/` | FastAPI over the database (`api/app`). Its tests (`api/tests`) run against real Postgres, in throwaway databases. |
+| `web/` | React + TypeScript frontend. Uses the API when it is running, otherwise an in-browser demo store that ports the rules in `db/migrations/004` and `005`. |
 
 ## The Advanced SQL core
 
@@ -57,19 +62,55 @@ that owns it.
 **No model is in the fund-release path.** Models produce evidence; a human sets
 a verification flag; a SQL trigger moves money.
 
+## API
+
+`api/app` implements `web/src/data/api.ts` over HTTP. Ranking, window functions and
+every state change stay in SQL. The API calls `fn_commit_funds`, updates `milestones`
+so the triggers fire, inserts `impact_reports` and reads the views, then reports what
+the database did, or the exact error it raised.
+
+| Route | What it runs |
+|---|---|
+| `GET /api/rulebooks/{id}/matches` | `fn_match_projects`, plus the rule that removed each other project |
+| `GET /api/scorecard`, `/esg-timeline`, `/leaderboard` | the views `project_scorecard`, `company_esg_timeline`, `ngo_leaderboard` |
+| `POST /api/commitments` | `fn_commit_funds` |
+| `POST /api/milestones/{id}/evidence`, `/verify`, `/fail` | `UPDATE milestones`, which fires `trg_release_next_phase` or `trg_hold_on_failed_verification`. The API refuses to verify a milestone with no submitted evidence. |
+| `POST /api/projects/{id}/impact-reports` | `INSERT INTO impact_reports` |
+| `POST /api/ledger/{id}/attempts` | an `UPDATE` or `DELETE` on `fund_transactions`, always rolled back |
+| `POST /api/safeguards/race` | two real sessions racing for one project, in a throwaway schema built from migrations 002 and 004 |
+| `POST /api/reset` | rebuilds from `db/migrations` and `db/seed.sql`. Off unless `CSR_ALLOW_RESET=1` (`make api` sets it). |
+
+A write the database refuses is an ordinary answer, not a server error: HTTP 200 with
+`{"ok": false, "kind": "sql", "error": "<Postgres's own message>"}`. HTTP errors mean a
+malformed request (422), an unknown id (404) or a database that cannot be reached (503).
+
+**There is no authentication.** Whoever can reach the API can verify milestones and move
+money, so run it on localhost or behind something that authenticates.
+
+Tests: `make test-api` (creates and drops its own databases on the compose server, never
+touching `csr_exchange`), and `cd web && npm test`. To check that the browser demo has not
+drifted from the database, run `make api` against a freshly seeded database and then
+`VITE_PARITY_API_URL=http://127.0.0.1:8000 npm test` in `web/`.
+
+**Upgrading an existing database.** `006_fix_leaderboard_fanout.sql` fixes `ngo_leaderboard`,
+which counted each commitment once per monthly report (the seeded 2,400,000 showed as
+14,400,000). `make demo` rebuilds everything, or apply just that file:
+`docker exec -i csr_db psql -U csr -d csr_exchange -f - < db/migrations/006_fix_leaderboard_fanout.sql`.
+
 ## Status
 
 Built and verified:
 
 - Full schema, triggers, transactions, window views, pgvector matching
-- 10/10 DB assertions pass from a clean `reset`
+- 11/11 DB assertions pass from a clean `reset`
 - Two-session concurrency test passes
-- React frontend (`web/`): six screens, demo-data mode. `npm test` pins its ported
-  matching, window-view and trigger logic to numbers read from this database.
+- FastAPI layer (`api/`) with tests against real Postgres, including a real two-session race
+- React frontend (`web/`): six screens, on the API or on an in-browser demo store. `npm test` pins
+  the demo's ported matching, window-view and trigger logic to numbers read from this database.
 
 Not yet built: synthetic training datasets, NLP & SDG extraction (BERT), impact
 prediction (XGBoost), fraud detection (Isolation Forest), composite risk
-grading, pipeline runner, FastAPI layer. The frontend does not talk to Postgres yet.
+grading, pipeline runner.
 
 Until the models exist, the extraction, impact, fraud and risk-grade rows in
 `db/seed.sql` are hand-written placeholders, and its embeddings are synthetic
