@@ -10,6 +10,8 @@ docker compose up -d          # or: make up
 make migrate seed             # schema + demo scenario
 make test                     # DB assertions
 make psql                     # poke around
+
+cd web && npm install && npm run dev   # frontend on http://localhost:5173
 ```
 
 Postgres listens on **localhost:5433** (5433, not 5432, to avoid colliding with
@@ -23,7 +25,8 @@ a local install).
 | `db/tests/` | Assertion tests. Each `RAISE`s on failure, so a non-zero exit is a real regression. |
 | `db/seed.sql` | Deterministic demo scenario. |
 | `ml/` | BERT, XGBoost and Isolation Forest, trained on synthetic project data (not yet built). |
-| `api/`, `web/` | FastAPI + React (not yet built). |
+| `web/` | React + TypeScript frontend. Runs today on an in-browser demo store that ports the rules in `db/migrations/004` and `005`. `web/src/data/api.ts` is the contract a FastAPI layer would implement. |
+| `api/` | FastAPI (not yet built). |
 
 ## The Advanced SQL core
 
@@ -61,10 +64,12 @@ Built and verified:
 - Full schema, triggers, transactions, window views, pgvector matching
 - 10/10 DB assertions pass from a clean `reset`
 - Two-session concurrency test passes
+- React frontend (`web/`): six screens, demo-data mode. `npm test` pins its ported
+  matching, window-view and trigger logic to numbers read from this database.
 
 Not yet built: synthetic training datasets, NLP & SDG extraction (BERT), impact
 prediction (XGBoost), fraud detection (Isolation Forest), composite risk
-grading, pipeline runner, FastAPI layer, React frontend.
+grading, pipeline runner, FastAPI layer. The frontend does not talk to Postgres yet.
 
 Until the models exist, the extraction, impact, fraud and risk-grade rows in
 `db/seed.sql` are hand-written placeholders, and its embeddings are synthetic

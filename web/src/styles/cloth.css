@@ -1,0 +1,126 @@
+/* The cloth. One texture per money state, shared by bands and legend swatches. */
+
+.weave[data-tone='released'] {
+  color: var(--paper);
+  background:
+    repeating-linear-gradient(90deg, rgba(255, 255, 255, 0.1) 0 1px, transparent 1px 4px),
+    repeating-linear-gradient(0deg, rgba(0, 0, 0, 0.2) 0 1px, transparent 1px 3px),
+    linear-gradient(180deg, var(--indigo-700), #24317a);
+}
+.weave[data-tone='locked'] {
+  color: var(--indigo-900);
+  background:
+    repeating-linear-gradient(90deg, rgba(109, 104, 80, 0.2) 0 1px, transparent 1px 4px),
+    repeating-linear-gradient(0deg, rgba(109, 104, 80, 0.16) 0 1px, transparent 1px 3px),
+    var(--linen);
+}
+.weave[data-tone='review'] {
+  color: var(--indigo-950);
+  background:
+    repeating-linear-gradient(90deg, rgba(255, 255, 255, 0.28) 0 1px, transparent 1px 4px),
+    repeating-linear-gradient(0deg, rgba(0, 0, 0, 0.12) 0 1px, transparent 1px 3px),
+    var(--turmeric);
+}
+.weave[data-tone='held'] {
+  color: var(--paper);
+  background:
+    repeating-linear-gradient(45deg, rgba(255, 255, 255, 0.2) 0 2px, transparent 2px 7px),
+    repeating-linear-gradient(-45deg, rgba(0, 0, 0, 0.2) 0 2px, transparent 2px 7px),
+    var(--madder);
+}
+.weave[data-tone='free'] {
+  color: var(--ink-2);
+  background: repeating-linear-gradient(90deg, rgba(27, 35, 88, 0.16) 0 1px, transparent 1px 8px);
+  outline: 1.5px dashed rgba(27, 35, 88, 0.38);
+  outline-offset: -1.5px;
+}
+
+.cloth {
+  position: relative;
+  margin: 0;
+  padding: 9px 0;
+}
+/* The woven borders of the cloth (selvedge) */
+.cloth::before,
+.cloth::after {
+  content: '';
+  position: absolute;
+  left: 0;
+  right: 0;
+  height: 3px;
+  background: repeating-linear-gradient(
+    90deg,
+    var(--indigo-900) 0 10px,
+    var(--turmeric) 10px 14px,
+    var(--indigo-900) 14px 24px,
+    transparent 24px 28px
+  );
+}
+.cloth::before { top: 0; }
+.cloth::after { bottom: 0; }
+
+.cloth__weave {
+  display: flex;
+  gap: 3px;
+  height: var(--h, 72px);
+}
+
+.band {
+  position: relative;
+  flex: 1 1 0;
+  min-width: 0;
+  display: flex;
+  align-items: flex-end;
+  padding: 0.55rem 0.7rem;
+  overflow: hidden;
+  border-radius: 3px;
+}
+
+.band__label {
+  display: grid;
+  line-height: 1.2;
+  min-width: 0;
+}
+.band__label strong {
+  font-family: var(--font-display);
+  font-weight: 600;
+  font-size: 0.95rem;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.band__label span {
+  font-size: 0.78rem;
+  opacity: 0.85;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* The one page-load moment in the app: the cloth is woven in left to right. */
+.cloth[data-animate] {
+  animation: weave-in 1200ms var(--ease) 120ms both;
+}
+@keyframes weave-in {
+  from { clip-path: inset(0 100% 0 0); }
+  to { clip-path: inset(0 0 0 0); }
+}
+
+.legend {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem 1.6rem;
+  font-size: 0.85rem;
+  color: var(--ink-2);
+}
+.legend li { display: inline-flex; align-items: center; gap: 0.5rem; }
+.legend strong { color: var(--ink); font-weight: 650; }
+.swatch {
+  width: 1.1rem;
+  height: 0.8rem;
+  border-radius: 2px;
+  flex: none;
+}
