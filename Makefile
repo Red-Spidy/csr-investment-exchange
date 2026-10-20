@@ -1,7 +1,7 @@
 DB_URL ?= postgresql://csr:csr@localhost:5433/csr_exchange
 PSQL   := docker exec -i csr_db psql -U csr -d csr_exchange -v ON_ERROR_STOP=1
 
-.PHONY: up down migrate reset seed test-db test-ml test-api test demo psql datasets api web
+.PHONY: up down migrate reset seed test-db test-ml test-api test demo psql datasets api web train train-fraud train-impact
 
 up:
 	docker compose up -d
@@ -46,6 +46,14 @@ demo: reset seed
 
 datasets:
 	PYTHONPATH=ml .venv/bin/python -m synth.build
+
+train: train-fraud train-impact
+
+train-fraud:
+	PYTHONPATH=ml .venv/bin/python -m fraud.train
+
+train-impact:
+	PYTHONPATH=ml .venv/bin/python -m impact.train
 
 psql:
 	docker exec -it csr_db psql -U csr -d csr_exchange
