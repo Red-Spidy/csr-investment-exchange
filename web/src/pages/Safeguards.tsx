@@ -30,7 +30,7 @@ export function Safeguards() {
 // ---------------------------------------------------------------- the race
 
 function Race() {
-  const { api } = useExchange()
+  const { api, source, reportFault } = useExchange()
   const [guards, setGuards] = useState<Guards>(ALL_GUARDS)
   const [result, setResult] = useState<RaceResult | null>(null)
   const [shown, setShown] = useState(0)
@@ -40,7 +40,13 @@ function Race() {
 
   async function run() {
     window.clearInterval(timer.current)
-    const r = await api.runRace(guards)
+    let r: RaceResult
+    try {
+      r = await api.runRace(guards)
+    } catch (err) {
+      reportFault(err)
+      return
+    }
     setResult(r)
     const instant = window.matchMedia('(prefers-reduced-motion: reduce)').matches
     if (instant) { setShown(r.steps.length); return }
@@ -78,7 +84,9 @@ function Race() {
         <div className="race__run">
           <button className="btn btn--turmeric" onClick={run}>Race two sessions</button>
           <p className="small faint">
-            Runs on a scratch company and project, the fixture from db/tests/06_concurrency.sh, so your demo data is untouched.
+            {source === 'live'
+              ? 'Two real Postgres sessions run in a scratch schema built from db/migrations, so the exchange’s own tables are untouched.'
+              : 'Runs on a scratch company and project, the fixture from db/tests/06_concurrency.sh, so your demo data is untouched.'}
             {off > 0 && ` ${off} layer${off > 1 ? 's are' : ' is'} switched off.`}
           </p>
         </div>

@@ -4,6 +4,7 @@ import {
 import type { ActionResult, ExchangeApi } from './api'
 import { createDemoApi } from './demoApi'
 import type { Effect } from './engine'
+import { createHttpApi, probeApi } from './httpApi'
 
 export interface Receipt {
   title: string
@@ -15,8 +16,16 @@ export interface Receipt {
   code?: string
 }
 
-interface Ctx {
+/** Where the data comes from: Postgres through the API, or the in-browser copy of its rules. */
+export type Source = 'live' | 'demo'
+
+interface Link {
   api: ExchangeApi
+  source: Source
+  canReset: boolean
+}
+
+interface Ctx extends Link {
   /** Bumped after every write so reads refetch. */
   version: number
   companyId: number
@@ -26,6 +35,10 @@ interface Ctx {
   /** Run a write, show its receipt, and refresh every read. */
   act: (title: string, run: (api: ExchangeApi) => Promise<ActionResult>) => Promise<ActionResult>
   reset: () => Promise<void>
+  /** Set when a request failed to reach the API (not when the database said no). */
+  fault: string | null
+  reportFault: (err: unknown) => void
+  retry: () => void
 }
 
 const ExchangeContext = createContext<Ctx | null>(null)
@@ -41,37 +54,108 @@ function readCompany(): number {
   }
 }
 
+// ------------------------------------------------------------ choosing the data source
+
+type Boot =
+  | { state: 'checking' }
+  | { state: 'unreachable' }
+  | { state: 'ready'; link: Link }
+
+/** VITE_DATA_SOURCE=demo|live forces one; anything else tries the API and falls back to the demo. */
+const PREFERENCE = import.meta.env.VITE_DATA_SOURCE as string | undefined
+
+const demoLink = (): Link => ({ api: createDemoApi(), source: 'demo', canReset: true })
+
 export function ExchangeProvider({ children }: { children: ReactNode }) {
-  const api = useMemo(() => createDemoApi(), [])
+  const [boot, setBoot] = useState<Boot>(() =>
+    PREFERENCE === 'demo' ? { state: 'ready', link: demoLink() } : { state: 'checking' })
+  const [attempt, setAttempt] = useState(0)
+
+  useEffect(() => {
+    if (boot.state === 'ready') return
+    let live = true
+    setBoot({ state: 'checking' })
+    probeApi().then(health => {
+      if (!live) return
+      if (health) setBoot({ state: 'ready', link: { api: createHttpApi(), source: 'live', canReset: health.resetEnabled } })
+      else if (PREFERENCE === 'live') setBoot({ state: 'unreachable' })
+      else setBoot({ state: 'ready', link: demoLink() })
+    })
+    return () => { live = false }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [attempt])
+
+  if (boot.state === 'checking') {
+    return <div className="boot" role="status" aria-busy="true"><p>Connecting to the exchange</p></div>
+  }
+  if (boot.state === 'unreachable') {
+    return (
+      <div className="boot" role="alert">
+        <h1 className="display">The API is not answering.</h1>
+        <p>This build was told to use the database, and nothing replied at /api. Start the API
+          (<code>make api</code>) and the database it needs (<code>make up</code>), then try again.</p>
+        <button className="btn" onClick={() => setAttempt(a => a + 1)}>Try again</button>
+      </div>
+    )
+  }
+  return <ExchangeSession link={boot.link}>{children}</ExchangeSession>
+}
+
+// ------------------------------------------------------------ the session
+
+function ExchangeSession({ link, children }: { link: Link; children: ReactNode }) {
+  const { api } = link
   const [version, setVersion] = useState(0)
   const [companyId, setCompanyIdState] = useState(readCompany)
   const [receipt, setReceipt] = useState<Receipt | null>(null)
+  const [fault, setFault] = useState<string | null>(null)
 
   const setCompanyId = useCallback((id: number) => {
     setCompanyIdState(id)
     try { localStorage.setItem(COMPANY_KEY, String(id)) } catch { /* private mode */ }
   }, [])
 
+  const reportFault = useCallback((err: unknown) => {
+    setFault(err instanceof Error ? err.message : 'Something went wrong talking to the API.')
+  }, [])
+
+  const retry = useCallback(() => {
+    setFault(null)
+    setVersion(v => v + 1)
+  }, [])
+
   const act = useCallback<Ctx['act']>(async (title, run) => {
-    const result = await run(api)
+    let result: ActionResult
+    try {
+      result = await run(api)
+    } catch (err) {
+      reportFault(err)
+      return { ok: false, kind: 'rule', error: 'The request did not reach the database.' }
+    }
     setReceipt(result.ok
       ? { title, ok: true, effects: result.effects }
       : { title, ok: false, effects: [], error: result.error, kind: result.kind, code: result.code })
     setVersion(v => v + 1)
     return result
-  }, [api])
+  }, [api, reportFault])
 
   const dismissReceipt = useCallback(() => setReceipt(null), [])
 
   const reset = useCallback(async () => {
-    await api.reset()
+    try {
+      await api.reset()
+    } catch (err) {
+      reportFault(err)
+      return
+    }
     setReceipt(null)
+    setFault(null)
     setVersion(v => v + 1)
-  }, [api])
+  }, [api, reportFault])
 
   const value = useMemo<Ctx>(() => ({
-    api, version, companyId, setCompanyId, receipt, dismissReceipt, act, reset,
-  }), [api, version, companyId, setCompanyId, receipt, dismissReceipt, act, reset])
+    ...link, version, companyId, setCompanyId, receipt, dismissReceipt, act, reset, fault, reportFault, retry,
+  }), [link, version, companyId, setCompanyId, receipt, dismissReceipt, act, reset, fault, reportFault, retry])
 
   return <ExchangeContext.Provider value={value}>{children}</ExchangeContext.Provider>
 }
@@ -87,7 +171,7 @@ export function useExchange(): Ctx {
  * on screen while refetching so the page does not flash empty.
  */
 export function useQuery<T>(read: (api: ExchangeApi) => Promise<T>, deps: unknown[] = []) {
-  const { api, version } = useExchange()
+  const { api, version, reportFault } = useExchange()
   const [data, setData] = useState<T>()
   const [loading, setLoading] = useState(true)
   const readRef = useRef(read)
@@ -96,9 +180,10 @@ export function useQuery<T>(read: (api: ExchangeApi) => Promise<T>, deps: unknow
   useEffect(() => {
     let live = true
     setLoading(true)
-    readRef.current(api).then(d => {
-      if (live) { setData(d); setLoading(false) }
-    })
+    readRef.current(api).then(
+      d => { if (live) { setData(d); setLoading(false) } },
+      err => { if (live) { setLoading(false); reportFault(err) } },
+    )
     return () => { live = false }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [api, version, ...deps])

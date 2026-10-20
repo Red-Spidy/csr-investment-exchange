@@ -80,7 +80,7 @@ describe('window views', () => {
     const rows = ngoLeaderboard(s)
     const vidya = rows.find(r => r.ngoId === 1)!
     expect(vidya.totalImpact).toBe(23.25)
-    // db view reports 14,400,000 (6 reports x 2,400,000); the commitment is 2,400,000.
+    // The view reported 14,400,000 (6 reports x 2,400,000) until migration 006; the commitment is 2,400,000.
     expect(vidya.totalFunded).toBe(2_400_000)
     expect(vidya.impactPerMillion).toBe(9.6875)
     expect([vidya.sectorRank, vidya.overallPercentile]).toEqual([1, 1])

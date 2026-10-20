@@ -1,4 +1,4 @@
-import { useEffect } from 'react'
+import { useEffect, useState } from 'react'
 import { NavLink, Outlet, useLocation } from 'react-router-dom'
 import { useExchange, useQuery } from '../data/store'
 import { Receipt } from './Receipt'
@@ -22,7 +22,8 @@ function Icon({ d }: { d: string }) {
 }
 
 export function Shell() {
-  const { companyId, setCompanyId, reset, dismissReceipt } = useExchange()
+  const { companyId, setCompanyId, reset, dismissReceipt, source, canReset, fault, retry } = useExchange()
+  const [confirmingReset, setConfirmingReset] = useState(false)
   const { pathname } = useLocation()
   // A receipt describes the last action; it should not follow you to another page.
   useEffect(() => { dismissReceipt() }, [pathname, dismissReceipt])
@@ -82,18 +83,48 @@ export function Shell() {
         </nav>
 
         <div className="rail__foot">
-          <div className="demo-chip">
-            <span className="demo-chip__dot" aria-hidden="true" />
-            <div>
-              <strong>Demo data</strong>
-              <p>Rules from db/migrations, run in your browser. Nothing is saved.</p>
+          {source === 'live' ? (
+            <div className="demo-chip demo-chip--live">
+              <span className="demo-chip__dot" aria-hidden="true" />
+              <div>
+                <strong>Live database</strong>
+                <p>Every number comes from Postgres, through the API.</p>
+              </div>
             </div>
-          </div>
-          <button className="rail__reset" onClick={reset}>Reset demo</button>
+          ) : (
+            <div className="demo-chip">
+              <span className="demo-chip__dot" aria-hidden="true" />
+              <div>
+                <strong>Demo data</strong>
+                <p>Rules from db/migrations, run in your browser. Nothing is saved.</p>
+              </div>
+            </div>
+          )}
+          {canReset && (source === 'demo' || !confirmingReset) && (
+            <button className="rail__reset" onClick={() => (source === 'demo' ? reset() : setConfirmingReset(true))}>
+              {source === 'demo' ? 'Reset demo' : 'Reset database'}
+            </button>
+          )}
+          {canReset && source === 'live' && confirmingReset && (
+            <div className="rail__confirm" role="group" aria-label="Confirm database reset">
+              <p>Wipe every table and reload the demo scenario?</p>
+              <div>
+                <button className="rail__reset rail__reset--danger"
+                  onClick={() => { setConfirmingReset(false); void reset() }}>Yes, reset</button>
+                <button className="rail__reset" onClick={() => setConfirmingReset(false)}>Cancel</button>
+              </div>
+            </div>
+          )}
         </div>
       </aside>
 
       <main className="main" id="main" tabIndex={-1}>
+        {fault && (
+          <div className="fault" role="alert">
+            <p><strong>Lost contact with the API.</strong> {fault}</p>
+            <button className="btn btn--small" onClick={retry}>Try again</button>
+          </div>
+        )}
         <Outlet />
       </main>
 

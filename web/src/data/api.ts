@@ -1,6 +1,7 @@
 // The one boundary between the UI and the data. Every method maps to a table,
-// view or function in db/migrations. demoApi.ts implements it in the browser;
-// a FastAPI adapter would implement the same interface over HTTP.
+// view or function in db/migrations. httpApi.ts implements it over HTTP against the
+// FastAPI service in api/ (Postgres does the work); demoApi.ts implements it in the
+// browser with a port of the same rules, for when no API is running.
 
 import type {
   CommitArgs, Effect, EsgRow, Guards, LeaderRow, MatchReport, RaceResult, ScorecardRow,

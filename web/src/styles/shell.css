@@ -158,3 +158,32 @@
   .main { padding-top: 2rem; }
   .receipt { right: 0.75rem; bottom: 0.75rem; width: calc(100vw - 1.5rem); }
 }
+
+/* ---------------------------------------------------------------- data source: live chip, reset, boot and fault */
+
+.demo-chip--live {
+  background: rgba(46, 111, 85, 0.22);
+  border-color: rgba(94, 190, 150, 0.45);
+  color: #bfe6d3;
+}
+.demo-chip--live strong { color: #7fd6ae; }
+.demo-chip--live .demo-chip__dot { background: #7fd6ae; box-shadow: 0 0 0 3px rgba(127, 214, 174, 0.22); }
+
+.rail__confirm { display: grid; gap: 0.4rem; font-size: 0.8rem; color: #c9d0f5; }
+.rail__confirm > div { display: flex; gap: 1rem; }
+.rail__reset--danger { color: #ffb4b4; }
+
+.fault {
+  display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 0.6rem 1.2rem;
+  margin-bottom: 2rem; padding: 0.9rem 1.1rem;
+  border-radius: var(--r-md);
+  background: color-mix(in srgb, var(--madder) 10%, var(--paper));
+  border: 1px solid color-mix(in srgb, var(--madder) 45%, var(--paper));
+}
+
+.boot {
+  min-height: 100vh; display: grid; place-content: center; justify-items: start; gap: 1rem;
+  padding: 2rem clamp(1.25rem, 6vw, 4rem); max-width: 40rem; margin-inline: auto;
+}
+.boot p { color: var(--ink-2); }
+.boot code { font-family: var(--font-code); font-size: 0.9em; }

@@ -550,9 +550,9 @@ export interface LeaderRow {
 }
 
 /**
- * ngo_leaderboard. Funding and impact are summed per project first. The SQL
- * view joins commitments and impact_reports in one go, so each commitment is
- * counted once per report row (6x for the seeded project); this does not.
+ * ngo_leaderboard. Funding and impact are summed per project first, as the view does
+ * since migration 006. Before it, the view joined commitments and impact_reports in
+ * one go and counted each commitment once per report row (6x for the seeded project).
  */
 export function ngoLeaderboard(s: DbState): LeaderRow[] {
   const base = s.ngos.map(n => {
