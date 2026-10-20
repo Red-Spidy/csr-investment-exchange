@@ -1,0 +1,27 @@
+{
+  "model_version": "iforest-v1",
+  "evaluation": "stratified grouped 5-fold CV over NGOs, NGO-level",
+  "review_share": 0.1,
+  "with_ngo_relative_features": {
+    "n_ngos": 500,
+    "n_fraudulent": 30,
+    "ngo_roc_auc": 0.9504,
+    "ngo_avg_precision": 0.7191,
+    "random_avg_precision": 0.06,
+    "flagged_share": 0.098,
+    "flagged_fraudulent": 22,
+    "precision_at_flag": 0.449,
+    "recall_at_flag": 0.7333
+  },
+  "ablation_raw_markers_only": {
+    "n_ngos": 500,
+    "n_fraudulent": 30,
+    "ngo_roc_auc": 0.9177,
+    "ngo_avg_precision": 0.3925,
+    "random_avg_precision": 0.06,
+    "flagged_share": 0.104,
+    "flagged_fraudulent": 16,
+    "precision_at_flag": 0.3077,
+    "recall_at_flag": 0.5333
+  }
+}
