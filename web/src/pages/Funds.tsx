@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { Link } from 'react-router-dom'
 import { Cloth, ClothLegend } from '../components/Cloth'
-import { PageHead, Pill, Section } from '../components/ui'
+import { PageHead, Pill, Section, TableScroll, Loading } from '../components/ui'
 import type { CommitmentView } from '../data/api'
 import { useExchange, useQuery } from '../data/store'
 import type { FundPhase, Milestone } from '../data/types'
@@ -24,7 +24,7 @@ export function Funds() {
     (a.entity === 'commitment' && mineIds.has(a.entityId))
     || (a.entity === 'milestone' && mine.some(c => c.milestones.some(m => m.id === a.entityId)))).reverse()
 
-  if (!company) return <div className="loading" aria-busy="true">Loading funds</div>
+  if (!company || !commitments || !ledger || !audit) return <Loading page="Funds">Loading funds</Loading>
   const name = shortCompany(company.name)
 
   return (
@@ -51,6 +51,7 @@ export function Funds() {
         {entries.length === 0 ? (
           <div className="empty"><h3>The ledger is empty</h3><p>Locking funds writes the first row.</p></div>
         ) : (
+          <TableScroll label="Ledger rows">
           <table className="table ledger">
             <thead>
               <tr><th scope="col">Row</th><th scope="col">When</th><th scope="col">What happened</th><th scope="col">Note</th><th scope="col" className="r">Amount</th></tr>
@@ -67,11 +68,13 @@ export function Funds() {
               ))}
             </tbody>
           </table>
+          </TableScroll>
         )}
 
         {auditRows.length > 0 && (
           <details className="sql-disclosure">
             <summary>Audit log ({auditRows.length})</summary>
+            <TableScroll label="Audit log rows">
             <table className="table ledger">
               <thead><tr><th scope="col">When</th><th scope="col">Entity</th><th scope="col">Action</th><th scope="col">Detail</th></tr></thead>
               <tbody>
@@ -85,6 +88,7 @@ export function Funds() {
                 ))}
               </tbody>
             </table>
+            </TableScroll>
           </details>
         )}
       </Section>

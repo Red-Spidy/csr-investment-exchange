@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { Link } from 'react-router-dom'
-import { PageHead, Pill, ScoreStack, Section, Sql } from '../components/ui'
+import { PageHead, Pill, ScoreStack, Section, Sql, TableScroll, Loading } from '../components/ui'
 import { MATCH_WEIGHTS, type MatchRow } from '../data/engine'
 import { useExchange, useQuery } from '../data/store'
 import { shortCompany, shortTitle } from '../lib/bands'
@@ -33,7 +33,7 @@ export function Matching() {
   const [confirming, setConfirming] = useState<number | null>(null)
   const [done, setDone] = useState<{ title: string; amount: number } | null>(null)
 
-  if (!company || !rulebook) return <div className="loading" aria-busy="true">Loading the rulebook</div>
+  if (!company || !rulebook || !report) return <Loading page="Matching">Loading the rulebook</Loading>
 
   const name = shortCompany(company.name)
   const remaining = company.mandatedBudget - company.committedBudget
@@ -150,6 +150,7 @@ export function Matching() {
       {report && report.excluded.length > 0 && (
         <Section id="excluded" title="Left out, and why"
           hint="Every project that did not make the list, with the rule that removed it.">
+          <TableScroll label="Left-out projects and their reasons">
           <table className="table excluded">
             <thead><tr><th scope="col">Project</th><th scope="col">Why it is out</th></tr></thead>
             <tbody>
@@ -169,6 +170,7 @@ export function Matching() {
               ))}
             </tbody>
           </table>
+          </TableScroll>
         </Section>
       )}
 

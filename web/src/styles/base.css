@@ -5,7 +5,7 @@
   --chalk-2: #dce0d6;
   --paper: #f4f6f1;
   --linen: #cdc9b6;
-  --linen-ink: #6d6850;
+  --linen-ink: #5a553f;
 
   --indigo-950: #0f1538;
   --indigo-900: #1b2358;
@@ -21,6 +21,7 @@
   --turmeric-soft: #f6e3ae;
   --neem: #2e6f55;
   --neem-soft: #cfe3d8;
+  --neem-ink: #265f48;
 
   --ink: #1b2358;
   --ink-2: #454c75;
@@ -175,7 +176,7 @@ button, input, select, textarea { font: inherit; color: inherit; }
 .pill::before {
   content: ''; width: 0.4rem; height: 0.4rem; border-radius: 50%; background: currentColor;
 }
-.pill[data-tone='neem']      { --c: var(--neem);       --bg: var(--neem-soft); }
+.pill[data-tone='neem']      { --c: var(--neem-ink);       --bg: var(--neem-soft); }
 .pill[data-tone='madder']    { --c: var(--madder);     --bg: var(--madder-soft); }
 .pill[data-tone='indigo']    { --c: var(--indigo-700); --bg: var(--indigo-100); }
 .pill[data-tone='turmeric']  { --c: var(--turmeric-deep); --bg: var(--turmeric-soft); }

@@ -36,6 +36,24 @@ const STATUS_TONE: Record<ProjectStatus, string> = {
   closed: 'linen', pending: 'linen', scoring: 'linen', rejected: 'madder', terminated: 'madder',
 }
 
+/** Wide tables scroll sideways on a phone; the wrapper makes that reachable by keyboard. */
+export function TableScroll({ label, children }: { label: string; children: ReactNode }) {
+  return <div className="table-scroll" role="region" aria-label={label} tabIndex={0}>{children}</div>
+}
+
+/**
+ * What a page shows while its data loads or if it never arrives. Pass `page` to keep
+ * the page's heading in the document; leave it out where a parent already has one.
+ */
+export function Loading({ page, children }: { page?: string; children: ReactNode }) {
+  return (
+    <div className="loading" aria-busy="true">
+      {page && <h1 className="sr-only">{page}</h1>}
+      {children}
+    </div>
+  )
+}
+
 export function StatusPill({ status }: { status: ProjectStatus }) {
   return <span className="pill" data-tone={STATUS_TONE[status]}>{STATUS_LABEL[status]}</span>
 }

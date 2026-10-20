@@ -1,7 +1,7 @@
 import { useMemo } from 'react'
 import { Link } from 'react-router-dom'
 import { Cloth, ClothLegend, type Band, type Tone } from '../components/Cloth'
-import { PageHead, Pill, Section } from '../components/ui'
+import { PageHead, Pill, Section, Loading } from '../components/ui'
 import { useExchange, useQuery } from '../data/store'
 import type { ProjectStatus } from '../data/types'
 import { commitmentBands, shortCompany, shortTitle, sumByTone } from '../lib/bands'
@@ -39,7 +39,7 @@ export function Exchange() {
     return { bands: all, totals: sumByTone(all), remaining: left }
   }, [mine, company])
 
-  if (!company) return <div className="loading" aria-busy="true">Loading the exchange</div>
+  if (!company || !commitments || !scorecard || !ledger || !rulebooks || (rulebook && !report)) return <Loading page="Exchange">Loading the exchange</Loading>
 
   const name = shortCompany(company.name)
   const awaiting = mine.flatMap(c => c.milestones.map(m => ({ c, m }))).filter(x => x.m.verification === 'submitted')

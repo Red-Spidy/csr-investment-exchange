@@ -1,7 +1,7 @@
 import { useMemo, useState } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
 import { Cloth } from '../components/Cloth'
-import { Grade, Meter, PageHead, RangeBar, ScoreStack, Section, StatusPill } from '../components/ui'
+import { Grade, Meter, PageHead, RangeBar, ScoreStack, Section, StatusPill, TableScroll, Loading } from '../components/ui'
 import type { ProjectDetail } from '../data/api'
 import { useQuery } from '../data/store'
 import type { SpendingHistory } from '../data/types'
@@ -66,7 +66,8 @@ export function Projects() {
                 </button>
               </li>
             ))}
-            {visible.length === 0 && (
+            {!rows && <li><Loading>Loading projects</Loading></li>}
+            {rows && visible.length === 0 && (
               <li className="empty"><h3>No projects here</h3><p>Try another filter.</p></li>
             )}
           </ul>
@@ -84,7 +85,7 @@ export function Projects() {
 
 function Detail({ projectId }: { projectId: number }) {
   const { data: d } = useQuery(api => api.projectDetail(projectId), [projectId])
-  if (!d) return <div className="loading" aria-busy="true">Loading project</div>
+  if (!d) return <Loading>Loading project</Loading>
   return <ProjectView d={d} key={d.project.id} />
 }
 
@@ -256,6 +257,7 @@ function HistoryTable({ rows }: { rows: SpendingHistory[] }) {
   if (sorted.length < 2) return null
   const [before, after] = [sorted.at(-2)!, sorted.at(-1)!]
   return (
+    <TableScroll label="Spending pattern rows">
     <table className="table history">
       <caption className="sr-only">Spending patterns, {before.fy} against {after.fy}</caption>
       <thead>
@@ -278,6 +280,7 @@ function HistoryTable({ rows }: { rows: SpendingHistory[] }) {
         })}
       </tbody>
     </table>
+    </TableScroll>
   )
 }
 

@@ -167,26 +167,27 @@ export function useExchange(): Ctx {
 }
 
 /**
- * Read from the API; refetches after every write. Keeps the previous data
- * on screen while refetching so the page does not flash empty.
+ * Read from the API; refetches after every write. After a write the previous result
+ * stays on screen while the fresh one loads, so the page does not flash empty. If the
+ * `deps` change (another project, another company) the old result belongs to something
+ * else, so it is dropped and `data` is undefined until the new one arrives.
  */
 export function useQuery<T>(read: (api: ExchangeApi) => Promise<T>, deps: unknown[] = []) {
   const { api, version, reportFault } = useExchange()
-  const [data, setData] = useState<T>()
-  const [loading, setLoading] = useState(true)
+  const key = JSON.stringify(deps)
+  const [result, setResult] = useState<{ key: string; data: T }>()
   const readRef = useRef(read)
   readRef.current = read
 
   useEffect(() => {
     let live = true
-    setLoading(true)
     readRef.current(api).then(
-      d => { if (live) { setData(d); setLoading(false) } },
-      err => { if (live) { setLoading(false); reportFault(err) } },
+      data => { if (live) setResult({ key, data }) },
+      err => { if (live) reportFault(err) },
     )
     return () => { live = false }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [api, version, ...deps])
+  }, [api, version, key, reportFault])
 
-  return { data, loading }
+  const fresh = result?.key === key
+  return { data: fresh ? result.data : undefined, loading: !fresh }
 }

@@ -1,6 +1,6 @@
 import { useMemo, useState, type KeyboardEvent } from 'react'
 import { Link } from 'react-router-dom'
-import { PageHead, Pill, Section, Sql } from '../components/ui'
+import { PageHead, Pill, Section, Sql, TableScroll, Loading } from '../components/ui'
 import type { EsgRow } from '../data/engine'
 import { useExchange, useQuery } from '../data/store'
 import { shortCompany, shortTitle } from '../lib/bands'
@@ -36,7 +36,7 @@ export function Impact() {
   const [projectId, setProjectId] = useState<number | null>(null)
   const [value, setValue] = useState('')
 
-  if (!company) return <div className="loading" aria-busy="true">Loading impact</div>
+  if (!company || !timeline || !leaders || !commitments) return <Loading page="Impact">Loading impact</Loading>
   const name = shortCompany(company.name)
   const target = funded.find(f => f.project.id === projectId) ?? funded[0]
   const lastValue = rows.at(-1)?.monthImpact
@@ -102,6 +102,7 @@ export function Impact() {
 
       <Section id="leaders" title="Who turns money into impact"
         hint="Impact reported for each ₹10 lakh funded, ranked within each sector. An NGO is ranked only once it has been funded.">
+        <TableScroll label="NGO leaderboard rows">
         <table className="table leaders">
           <thead>
             <tr>
@@ -122,6 +123,7 @@ export function Impact() {
             ))}
           </tbody>
         </table>
+        </TableScroll>
       </Section>
 
       <details className="sql-disclosure">
@@ -147,30 +149,30 @@ function Readout({ row, name }: { row: EsgRow; name: string }) {
       <div>
         <dt>Reported this month</dt>
         <dd className="num">{num(row.monthImpact, 2)}</dd>
-        <p className="code">SUM(metric_value) GROUP BY month</p>
+        <dd className="code">SUM(metric_value) GROUP BY month</dd>
       </div>
       <div>
         <dt>Change from last month</dt>
         <dd className="num">{row.momDelta === null ? 'First month' : signed(row.momDelta)}</dd>
-        <p className="code">month_impact - LAG(month_impact)</p>
+        <dd className="code">month_impact - LAG(month_impact)</dd>
       </div>
       <div>
         <dt>3-month average</dt>
         <dd className="num">{num(row.rolling3mo, 2)}</dd>
-        <p className="code">AVG() OVER (ROWS 2 PRECEDING)</p>
+        <dd className="code">AVG() OVER (ROWS 2 PRECEDING)</dd>
       </div>
       <div>
         <dt>Running total</dt>
         <dd className="num">{num(row.cumulativeImpact, 2)}</dd>
-        <p className="code">SUM() OVER (ROWS UNBOUNDED PRECEDING)</p>
+        <dd className="code">SUM() OVER (ROWS UNBOUNDED PRECEDING)</dd>
       </div>
       <div>
         <dt>Standing among companies</dt>
         <dd className={row.peersInMonth > 1 ? 'num' : 'readout__text'}>
           {row.peersInMonth > 1 ? `${ordinal(Math.round(row.peerPercentile * 100))} percentile` : 'Nobody to compare'}
         </dd>
-        <p className="code">PERCENT_RANK() OVER (PARTITION BY month)</p>
-        {row.peersInMonth <= 1 && <p className="faint small">Only {name} reported this month.</p>}
+        <dd className="code">PERCENT_RANK() OVER (PARTITION BY month)</dd>
+        {row.peersInMonth <= 1 && <dd className="faint small">Only {name} reported this month.</dd>}
       </div>
     </dl>
   )
@@ -225,8 +227,10 @@ function EsgChart({ rows, activeMonth, onPick }: { rows: EsgRow[]; activeMonth: 
 
       {rows.map((r, i) => {
         const on = r.month === activeMonth
+        const yearStart = i === 0 || r.month.slice(0, 4) !== rows[i - 1].month.slice(0, 4)
         return (
-          <g key={r.month} tabIndex={0} role="button" aria-pressed={on} className="chart__bar"
+          <g key={r.month}>
+          <g tabIndex={0} role="button" aria-pressed={on} className="chart__bar"
             aria-label={`${monthLabel(r.month)}: ${num(r.monthImpact, 2)} reported`}
             onClick={() => onPick(r.month)} onKeyDown={e => (e.key === 'Enter' || e.key === ' ') ? onPick(r.month) : onKey(e, i)}>
             <rect x={x(i) - band / 2} y={M.t} width={band} height={plotH + 28} fill="transparent" />
@@ -237,9 +241,11 @@ function EsgChart({ rows, activeMonth, onPick }: { rows: EsgRow[]; activeMonth: 
             <text x={x(i)} y={H - M.b + 22} textAnchor="middle" className={`chart__month${on ? ' is-on' : ''}`}>
               {new Date(r.month).toLocaleDateString('en-GB', { month: 'short', timeZone: 'UTC' })}
             </text>
-            {(i === 0 || r.month.slice(0, 4) !== rows[i - 1].month.slice(0, 4)) && (
-              <text x={x(i)} y={H - M.b + 40} textAnchor="middle" className="chart__year">{r.month.slice(0, 4)}</text>
-            )}
+          </g>
+          {/* The year is an axis label, so it sits outside the bar's button and its name. */}
+          {yearStart && (
+            <text x={x(i)} y={H - M.b + 40} textAnchor="middle" className="chart__year" aria-hidden="true">{r.month.slice(0, 4)}</text>
+          )}
           </g>
         )
       })}
