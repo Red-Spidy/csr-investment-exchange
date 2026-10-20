@@ -1,7 +1,7 @@
 DB_URL ?= postgresql://csr:csr@localhost:5433/csr_exchange
 PSQL   := docker exec -i csr_db psql -U csr -d csr_exchange -v ON_ERROR_STOP=1
 
-.PHONY: up down migrate reset seed test-db test-ml test-api test demo psql datasets api web train train-fraud train-impact
+.PHONY: up down migrate reset seed test-db test-ml test-api test demo psql datasets api web train train-fraud train-impact proposals
 
 up:
 	docker compose up -d
@@ -54,6 +54,10 @@ train-fraud:
 
 train-impact:
 	PYTHONPATH=ml .venv/bin/python -m impact.train
+
+# BERT training text via Gemini/Groq (keys in .env). Resumable; LIMIT=300 for a pilot.
+proposals:
+	PYTHONPATH=ml .venv/bin/python -m textgen.generate $(if $(LIMIT),--limit $(LIMIT),)
 
 psql:
 	docker exec -it csr_db psql -U csr -d csr_exchange

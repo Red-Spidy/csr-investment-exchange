@@ -133,3 +133,43 @@ SECTOR_PROFILE: dict[str, SectorProfile] = {
         budget_items=("training costs", "equipment and inputs", "market linkage", "working capital support"),
     ),
 }
+
+
+# How the proposal checker recognises that an activity is actually described.
+# Each activity lists alternatives; an alternative matches when every "+"-joined
+# part appears in the lowercased text. Spelling variants are listed because
+# LLMs write both "anaemia" and "anemia".
+ACTIVITY_KEYWORDS: dict[str, tuple[str, ...]] = {
+    "midday meal support": ("midday meal", "mid-day meal", "mid day meal"),
+    "teacher training": ("teacher+train",),
+    "girls' scholarships": ("scholarship",),
+    "digital classrooms": ("digital+classroom", "smart class", "digital learning"),
+    "remedial classes": ("remedial", "catch-up class", "bridge class"),
+    "school toilet construction": ("toilet",),
+    "mobile health camps": ("health camp", "mobile clinic", "mobile medical"),
+    "antenatal checkups": ("antenatal", "ante-natal", "prenatal"),
+    "anaemia screening": ("anaemia", "anemia", "haemoglobin", "hemoglobin"),
+    "immunisation drives": ("immunisation", "immunization", "vaccinat"),
+    "telemedicine kiosks": ("telemedicine", "tele-medicine", "teleconsult"),
+    "community health worker training": ("health worker", "asha+train"),
+    "handpump rehabilitation": ("handpump", "hand pump", "hand-pump"),
+    "toilet block construction": ("toilet",),
+    "water chlorination": ("chlorin",),
+    "rainwater harvesting": ("rainwater", "rain water"),
+    "hygiene awareness sessions": ("hygiene awareness", "hygiene education", "hygiene session",
+                                   "hygiene practice", "handwashing", "hand washing", "hand-washing"),
+    "menstrual hygiene programmes": ("menstrua",),
+    "native sapling plantation": ("sapling", "tree planting", "plantation", "plant+tree"),
+    "mangrove restoration": ("mangrove",),
+    "solar street lighting": ("solar",),
+    "waste segregation drives": ("segregat",),
+    "check dam construction": ("check dam", "check-dam", "checkdam"),
+    "clean cookstove distribution": ("cookstove", "cook stove", "cook-stove", "chulha"),
+    "vocational skill training": ("vocational", "skill training", "skills training", "skilling"),
+    "self-help group microcredit": ("self-help group", "self help group", "shg", "microcredit",
+                                    "micro-credit", "microfinance"),
+    "market linkage for artisans": ("market linkage", "market access", "link+market"),
+    "drip irrigation for smallholders": ("drip",),
+    "dairy cooperative support": ("dairy",),
+    "artisan design training": ("design training", "design+artisan", "product design"),
+}
