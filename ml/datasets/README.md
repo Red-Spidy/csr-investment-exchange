@@ -8,7 +8,7 @@ produces byte-identical files, so anyone on the team can regenerate them.
 | `ngos.csv` | 500 | NGO | Features for the impact model |
 | `projects.csv` | 2,000 | Project proposal and its outcome | XGBoost (impact); labels for BERT |
 | `spending.csv` | 2,416 | NGO per financial year, FY19-20 to FY23-24 | Isolation Forest (fraud) |
-| `proposals.jsonl` | 1,300 | Written proposal for one project | BERT (SDGs, metric, fields) |
+| `proposals.jsonl` | 2,000 | Written proposal for one project | BERT (SDGs, metric, fields) |
 
 The CSVs come from `make datasets`. The proposal text comes from `make proposals`
 (code in `ml/textgen/`), which needs API keys and is not byte-reproducible --
@@ -98,9 +98,10 @@ in reality.
 
 ## Proposal text
 
-`proposals.jsonl` holds one LLM-written proposal per project: 1,300 so far,
-all by Gemini 3.5 Flash-Lite. About 700 more are planned from a second model
-(Groq), so BERT can be tested on a writing style it never trained on.
+`proposals.jsonl` holds one LLM-written proposal for each of the 2,000 projects,
+all by Gemini 3.5 Flash-Lite (9 early ones by its `-latest` alias). A second
+model's rewrites of the test projects (`make proposals-unseen`, Groq) are kept in
+a separate file, used only to test BERT on a writing style it never trained on.
 
 **How a proposal is made.** Each project's facts -- NGO, district, activities,
 beneficiaries, baseline and target, duration, budget -- go to the LLM on a fact
@@ -117,11 +118,11 @@ three tries, unless it:
 - describes every activity -- the SDG labels follow from the activities;
 - leaves out what it was told to leave out;
 - invents no number (citations of Section 135 of the Companies Act, 2013 are
-  allowed; 166 proposals make one);
+  allowed; 283 proposals make one);
 - does not name SDGs outright, so BERT must infer them from what the project does.
 
-**Deliberate gaps teach abstention.** 282 proposals give no baseline, 210 no
-beneficiary count and 397 no budget breakdown. A reader that fills those in is
+**Deliberate gaps teach abstention.** 442 proposals give no baseline, 323 no
+beneficiary count and 615 no budget breakdown. A reader that fills those in is
 hallucinating, and the evaluation counts it.
 
 | Column | Meaning |
@@ -131,20 +132,20 @@ hallucinating, and the evaluation counts it.
 | `spans` | Character positions of each stated fact, the field extractor's labels |
 | `provider`, `model` | Which LLM wrote it |
 | `style`, `length_words` | What it was asked for |
-| `prompt_version` | `p2` (305 proposals) or `p3` (995): p3 adds varied metric and budget wording and allows legal citations |
+| `prompt_version` | `p2` (305), `p3` (995) or `p4` (700): p3 adds varied metric and budget wording and allows legal citations; p4 adds unlabelled context counts |
 
-Measured on the corpus: activity names copied word for word in 10.7% of
-activities (96% before the fact sheet was varied); median length 142 words
+Measured on the corpus: activity names copied word for word in 10.5% of
+activities (96% before the fact sheet was varied); median length 143 words
 (54-330).
 
-**Prompt `p4` (for the next batch) adds unlabelled context counts.** On hand-written demo
-proposals, BERT read "80,000 saplings" and "12 schools" as beneficiary counts: the checker
-had rejected every number that was not a fact, so every number in this corpus is one. From
-`p4`, 71% of fact sheets carry one or two counts of things (villages, schools, saplings,
-self-help groups) that the proposal must mention and that are never labelled. None of the
-1,300 proposals above has them yet.
+**Prompt `p4` adds unlabelled context counts.** On hand-written demo proposals, the first
+BERT read "80,000 saplings" and "12 schools" as beneficiary counts: the checker had
+rejected every number that was not a fact, so every number it trained on was one. In `p4`,
+71% of fact sheets carry one or two counts of things (villages, schools, saplings,
+self-help groups) that the proposal must mention and that are never labelled; 507 of the
+700 `p4` proposals have them.
 
-**Limitations.** One LLM so far, so one model's habits. Invented details written
+**Limitations.** One LLM writes all the training text, so one model's habits. Invented details written
 in words ("twelve-year-old Meena") are not checked; only numbers are. Because
 the checker requires each activity's keywords, a keyword baseline is flattered
 on this corpus -- compare readers on text the checker never shaped.
