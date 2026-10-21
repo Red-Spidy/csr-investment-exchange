@@ -128,3 +128,18 @@ def test_citing_the_csr_law_is_not_an_invented_number(citation):
 def test_a_bare_135_is_still_an_invented_number():
     result = check(_spec(), GOOD.replace("reaching about", "across 135 households, reaching about"))
     assert "invented:135" in result.reasons
+
+
+def test_context_numbers_are_allowed_but_must_appear():
+    # Real proposals mention counts that are not facts BERT should extract
+    # ("40 schools", "80,000 saplings"). The corpus must contain them, unlabelled.
+    spec = _spec(context=(("villages", 45),))
+    assert check(spec, GOOD + " The work covers 45 villages.").ok
+    result = check(spec, GOOD)
+    assert not result.ok and "missing_context:villages" in result.reasons
+
+
+def test_context_numbers_get_no_label():
+    spec = _spec(context=(("villages", 45),))
+    result = check(spec, GOOD + " The work covers 45 villages.")
+    assert set(result.spans) == {"beneficiaries", "baseline", "target", "amount", "duration", "district"}

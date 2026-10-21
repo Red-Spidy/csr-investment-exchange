@@ -35,3 +35,4 @@ class ProposalSpec:
     style: str
     length_words: int
     metric_direction: str = "increase"   # 'increase' | 'decrease'
+    context: tuple[tuple[str, int], ...] = ()   # counts to mention that are NOT labels

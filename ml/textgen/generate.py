@@ -24,18 +24,19 @@ import numpy as np
 import pandas as pd
 
 from synth.build import load_world
-from synth.catalog import ACTIVITY_DESCRIPTIONS, BUDGET_ITEM_PHRASES, METRIC_PHRASES, SECTOR_PROFILE
+from synth.catalog import ACTIVITY_DESCRIPTIONS, BUDGET_ITEM_PHRASES, CONTEXT_COUNTS, METRIC_PHRASES, SECTOR_PROFILE
 from textgen.checker import check
 from textgen.router import (REQUEST_TIMEOUT, AllProvidersUnavailable, Router, parse_batch,
                             providers_from_env)
 from textgen.spec import ProposalSpec
 
-PROMPT_VERSION = "p3"
+PROMPT_VERSION = "p4"
 DATASETS = Path("ml/datasets")
 OUT = DATASETS / "proposals.jsonl"
 BATCH_SIZE = 10
 MAX_ATTEMPTS = 3
 STYLE_SEED = 1021
+CONTEXT_SHARE = 0.7          # proposals that mention unlabelled counts
 
 # Varied voices so BERT learns content, not one register.
 STYLES = (
@@ -58,6 +59,8 @@ For each set of facts you are given, write the proposal that NGO would submit.
 Rules:
 1. Use every fact given, with exactly the numbers given. Write every number in digits.
 2. Do not add any other number: no other counts, percentages, amounts, dates or years.
+   Numbers listed under "Context" are part of the setting: mention each one, but they
+   are not the number of beneficiaries.
 3. Describe every activity in your own words. The fact sheet's labels, wording
    and order are arbitrary: do not copy them. Organise the proposal the way a
    real NGO would, not in the order of the facts.
@@ -74,6 +77,26 @@ Return only a JSON array with one object per proposal:
 
 def _metric(name: str):
     return next(m for p in SECTOR_PROFILE.values() for m in p.metrics if m.name == name)
+
+
+def _context(project_id: int, sector: str, facts: set[float]) -> tuple[tuple[str, int], ...]:
+    """0-2 unlabelled counts for the setting, never equal to a labelled fact,
+    so a number's role has to be read from the words around it."""
+    rng = np.random.default_rng([STYLE_SEED, project_id, 3])
+    if rng.random() >= CONTEXT_SHARE:
+        return ()
+    options = CONTEXT_COUNTS[sector]
+    picked = rng.choice(len(options), size=int(rng.integers(1, 3)), replace=False)
+    out = []
+    for i in sorted(picked):
+        noun, low, high, step = options[i]
+        for _ in range(20):
+            n = int(round(rng.integers(low, high + 1) / step) * step)
+            if float(n) not in facts:
+                out.append((noun, n))
+                facts.add(float(n))
+                break
+    return tuple(out)
 
 
 def build_specs(projects: pd.DataFrame, ngos: pd.DataFrame) -> list[ProposalSpec]:
@@ -97,6 +120,8 @@ def build_specs(projects: pd.DataFrame, ngos: pd.DataFrame) -> list[ProposalSpec
             baseline = None
             omitted["baseline"] = float(p.baseline)
 
+        facts = {float(p.beneficiaries), float(p.baseline), float(p.target), float(p.requested_amount),
+                 float(p.duration_months), float(p.num_phases), float(ngo.loc[p.ngo_id, "established_year"])}
         rng = np.random.default_rng([STYLE_SEED, int(p.project_id)])
         specs.append(ProposalSpec(
             project_id=int(p.project_id),
@@ -120,6 +145,7 @@ def build_specs(projects: pd.DataFrame, ngos: pd.DataFrame) -> list[ProposalSpec
             style=STYLES[rng.integers(len(STYLES))],
             length_words=int(LENGTHS[rng.integers(len(LENGTHS))]),
             metric_direction=metric.direction,
+            context=_context(int(p.project_id), p.sector, facts),
         ))
     return specs
 
@@ -189,6 +215,9 @@ def _facts(spec: ProposalSpec) -> str:
         f"{pick(_LABELS['duration'])}: {spec.duration_months} months",
         f"{pick(_LABELS['budget'])}: Rs {_indian(spec.amount)} ({_in_words(spec.amount)})",
     ]
+    if spec.context:
+        body.append("Context (mention each; not the number of beneficiaries): "
+                    + "; ".join(f"{n:,} {noun}" for noun, n in spec.context))
     if spec.budget_lines:
         body.append(f"{pick(_LABELS['breakdown'])}: "
                     + "; ".join(f"{pick(BUDGET_ITEM_PHRASES[item])} Rs {_indian(a)}"

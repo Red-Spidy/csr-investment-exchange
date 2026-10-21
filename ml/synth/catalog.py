@@ -288,3 +288,17 @@ BUDGET_ITEM_PHRASES: dict[str, tuple[str, ...]] = {
     "working capital support": ("working capital support", "working capital", "seed capital"),
     ADMIN_BUDGET_ITEM: (ADMIN_BUDGET_ITEM, "admin and reporting", "overheads and monitoring", "management costs"),
 }
+
+
+# Counts that real proposals mention but that are NOT facts the readers should
+# extract: "40 schools", "80,000 saplings". The first corpus had none -- the
+# checker rejected every number that was not a fact -- so BERT learned that
+# every number is one, and on hand-written demo proposals read "80,000
+# saplings" as the beneficiary count. Each entry: (noun, low, high, rounding).
+CONTEXT_COUNTS: dict[str, tuple[tuple[str, int, int, int], ...]] = {
+    "education": (("schools", 5, 60, 1), ("teachers", 20, 300, 1), ("villages", 5, 80, 1)),
+    "healthcare": (("villages", 10, 120, 1), ("health camps", 6, 60, 1), ("health workers", 10, 150, 1)),
+    "water_sanitation": (("villages", 5, 80, 1), ("handpumps", 20, 300, 1), ("wells", 5, 60, 1)),
+    "environment": (("saplings", 5_000, 150_000, 1_000), ("villages", 5, 50, 1), ("self-help groups", 5, 40, 1)),
+    "livelihood": (("self-help groups", 10, 120, 1), ("villages", 5, 80, 1), ("looms", 50, 900, 10)),
+}

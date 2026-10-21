@@ -118,7 +118,14 @@ def check(spec: ProposalSpec, text: str | None) -> CheckResult:
         if not _activity_described(activity, lowered):
             reasons.append(f"missing_activity:{activity}")
 
+    # Context counts must appear -- they are the distractors BERT has to learn
+    # to ignore -- but they are never labels.
+    for noun, n in spec.context:
+        if not any(_same(x.value, n) for x in numbers):
+            reasons.append(f"missing_context:{noun}")
+
     allowed = set(required.values()) | {float(spec.founded), float(spec.num_phases)}
+    allowed |= {float(n) for _, n in spec.context}
     allowed |= {float(v) for v in SMALL_INTEGERS}
     allowed |= {v for v, _ in _duration_values(spec.duration_months)}
     allowed |= {n.value for n in find_numbers(spec.beneficiary_group)}

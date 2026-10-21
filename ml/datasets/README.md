@@ -137,6 +137,13 @@ Measured on the corpus: activity names copied word for word in 10.7% of
 activities (96% before the fact sheet was varied); median length 142 words
 (54-330).
 
+**Prompt `p4` (for the next batch) adds unlabelled context counts.** On hand-written demo
+proposals, BERT read "80,000 saplings" and "12 schools" as beneficiary counts: the checker
+had rejected every number that was not a fact, so every number in this corpus is one. From
+`p4`, 71% of fact sheets carry one or two counts of things (villages, schools, saplings,
+self-help groups) that the proposal must mention and that are never labelled. None of the
+1,300 proposals above has them yet.
+
 **Limitations.** One LLM so far, so one model's habits. Invented details written
 in words ("twelve-year-old Meena") are not checked; only numbers are. Because
 the checker requires each activity's keywords, a keyword baseline is flattered

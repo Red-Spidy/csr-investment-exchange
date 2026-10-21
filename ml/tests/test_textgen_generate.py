@@ -27,6 +27,7 @@ def _faithful(spec) -> str:
         parts.append(f"Our {spec.metric_label} stands at {spec.baseline:g} and we aim for {spec.target:g}.")
     else:
         parts.append(f"We aim for {spec.target:g} on {spec.metric_label}.")
+    parts.extend(f"The work covers {n:,} {noun}." for noun, n in spec.context)
     parts.append(f"We request Rs {spec.amount:,}.")
     if spec.budget_lines:
         parts.append("Breakdown: " + "; ".join(f"{item} Rs {amount:,}" for item, amount in spec.budget_lines) + ".")
@@ -189,3 +190,22 @@ def test_catalogue_budget_and_metric_names_are_not_handed_over_every_time(specs)
     admin = sum(ADMIN_BUDGET_ITEM in batch_prompt([s]) for s in with_breakdown) / len(with_breakdown)
     metric = sum(s.metric_label in batch_prompt([s]) for s in specs) / len(specs)
     assert admin < 0.5 and metric < 0.6
+
+
+def test_most_specs_carry_unlabelled_context_numbers_that_never_equal_a_fact(specs):
+    with_context = [s for s in specs if s.context]
+    assert 0.5 <= len(with_context) / len(specs) <= 0.9
+    for s in with_context:
+        facts = {s.beneficiaries, s.baseline, s.target, s.amount, s.duration_months, s.founded, s.num_phases,
+                 *s.omitted.values()}
+        assert all(n not in facts for _, n in s.context), s.project_id
+    assert [s.context for s in specs] == [s.context for s in build_specs(
+        generate_world(seed=3, n_ngos=40, n_projects=60).projects,
+        generate_world(seed=3, n_ngos=40, n_projects=60).ngos)]
+
+
+def test_prompt_lists_context_numbers_as_not_the_beneficiary_count(specs):
+    spec = next(s for s in specs if s.context)
+    prompt = batch_prompt([spec])
+    noun, n = spec.context[0]
+    assert f"{n:,} {noun}" in prompt and "not the number of beneficiaries" in prompt
