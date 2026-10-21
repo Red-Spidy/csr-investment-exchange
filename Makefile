@@ -1,7 +1,7 @@
 DB_URL ?= postgresql://csr:csr@localhost:5433/csr_exchange
 PSQL   := docker exec -i csr_db psql -U csr -d csr_exchange -v ON_ERROR_STOP=1
 
-.PHONY: up down migrate reset seed test-db test-ml test-api test demo psql datasets api web train train-fraud train-impact train-bert proposals score
+.PHONY: up down migrate reset seed test-db test-ml test-api test demo psql datasets api web train train-fraud train-impact train-bert proposals score eval-human proposals-unseen eval-unseen
 
 up:
 	docker compose up -d
@@ -60,6 +60,17 @@ train-impact:
 # bert-base-cased download -- so it is not part of `make train`.
 train-bert:
 	PYTHONPATH=ml .venv/bin/python -m nlp.train
+
+# BERT on text it never trained on: the team's hand-written proposals, and another
+# LLM's rewrites of the test projects (needs GROQ_API_KEY in .env).
+eval-human:
+	PYTHONPATH=ml .venv/bin/python -m nlp.external --human
+
+proposals-unseen:
+	PYTHONPATH=ml .venv/bin/python -m textgen.generate --split test --providers groq --out ml/datasets/proposals_unseen_writer.jsonl
+
+eval-unseen:
+	PYTHONPATH=ml .venv/bin/python -m nlp.external --jsonl ml/datasets/proposals_unseen_writer.jsonl
 
 # Score every project in the database with the trained models, then grade it in SQL.
 score:

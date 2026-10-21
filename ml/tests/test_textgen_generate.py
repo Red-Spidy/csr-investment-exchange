@@ -209,3 +209,18 @@ def test_prompt_lists_context_numbers_as_not_the_beneficiary_count(specs):
     prompt = batch_prompt([spec])
     noun, n = spec.context[0]
     assert f"{n:,} {noun}" in prompt and "not the number of beneficiaries" in prompt
+
+
+def test_an_unseen_writer_set_covers_only_the_requested_split(specs):
+    from textgen.generate import specs_for_split
+    w = generate_world(seed=3, n_ngos=40, n_projects=60)
+    test_ids = set(w.projects.loc[w.projects["split"] == "test", "project_id"])
+    chosen = specs_for_split(specs, w.projects, "test")
+    assert chosen and {s.project_id for s in chosen} == test_ids & {s.project_id for s in specs}
+
+
+def test_provider_choice_keeps_only_those_keys():
+    from textgen.generate import env_for_providers
+    env = {"GEMINI_API_KEY": "g", "GROQ_API_KEY": "q", "GROQ_MODEL": "m", "DATABASE_URL": "x"}
+    assert env_for_providers(env, ["groq"]) == {"GROQ_API_KEY": "q", "GROQ_MODEL": "m", "DATABASE_URL": "x"}
+    assert env_for_providers(env, None) == env

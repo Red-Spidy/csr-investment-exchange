@@ -1,15 +1,16 @@
 # Fact sheets for the hand-written test set
 
-Each writer takes 10 sheets. Write the proposal the NGO would send a company's CSR team, in your own words, and save it as `proposals/<project id>.txt` (e.g. `proposals/1234.txt`).
+Each writer takes 10 sheets. Write the proposal the NGO would send a company's CSR team, in your own words, and save it as `proposals/<project id>.txt` (e.g. `proposals/1234.txt`). Then run `make eval-human` from the repo root.
 
 Rules, so the answers can be scored:
 
 1. Use every fact on the sheet, with the numbers **in digits** exactly as given ("9 months", not "nine months"; "Rs 18 lakh" or "Rs 18,00,000" are both fine).
-2. Do not add other numbers - no other counts, percentages, amounts or years.
-3. Describe each activity in your own words; don't copy the activity names.
-4. Never state anything listed under *Do not state*.
-5. Don't mention the SDGs by name or number.
-6. Write naturally - any length from 100 to 300 words, any structure.
+2. Mention each number under *Also mention*: these are counts of things, not of beneficiaries.
+3. Do not add other numbers - no other counts, percentages, amounts or years.
+4. Describe each activity in your own words; don't copy the activity names.
+5. Never state anything listed under *Do not state*.
+6. Don't mention the SDGs by name or number.
+7. Write naturally - any length from 100 to 300 words, any structure.
 
 ## Writer A
 
@@ -23,6 +24,7 @@ Rules, so the answers can be scored:
 - **Duration:** 12 months
 - **Budget:** Rs 15,10,000 (15.1 lakh)
 - **Breakdown:** infrastructure upgrades Rs 4,62,000; community mobilisers Rs 3,13,000; teacher training Rs 6,59,000; administration and monitoring Rs 76,000
+- **Also mention:** 32 schools; 205 teachers
 
 ### Project 24
 
@@ -34,6 +36,7 @@ Rules, so the answers can be scored:
 - **Duration:** 19 months
 - **Budget:** Rs 26,60,000 (26.6 lakh)
 - **Breakdown:** infrastructure upgrades Rs 6,22,000; community mobilisers Rs 5,20,000; learning materials Rs 13,52,000; administration and monitoring Rs 1,66,000
+- **Also mention:** 42 schools
 - **Do not state:** the number of beneficiaries; the current learning outcome score
 
 ### Project 244
@@ -46,6 +49,7 @@ Rules, so the answers can be scored:
 - **Duration:** 22 months
 - **Budget:** Rs 46,40,000 (46.4 lakh)
 - **Breakdown:** medical supplies Rs 11,48,000; mobile camp operations Rs 32,39,000; administration and monitoring Rs 2,53,000
+- **Also mention:** 28 villages; 7 health camps
 - **Do not state:** the number of beneficiaries
 
 ### Project 886
@@ -57,6 +61,7 @@ Rules, so the answers can be scored:
 - **Goal:** raise learning outcome score to 47%
 - **Duration:** 17 months
 - **Budget:** Rs 15,90,000 (15.9 lakh)
+- **Also mention:** 14 schools; 75 villages
 - **Do not state:** the current learning outcome score; a budget breakdown or line-item amounts
 
 ### Project 1233
@@ -101,6 +106,7 @@ Rules, so the answers can be scored:
 - **Goal:** raise antenatal coverage from 59% to 89%
 - **Duration:** 16 months
 - **Budget:** Rs 1,48,90,000 (1.489 crore)
+- **Also mention:** 111 villages; 144 health workers
 - **Do not state:** a budget breakdown or line-item amounts
 
 ### Project 317
@@ -113,6 +119,7 @@ Rules, so the answers can be scored:
 - **Duration:** 23 months
 - **Budget:** Rs 11,10,000 (11.1 lakh)
 - **Breakdown:** equipment and inputs Rs 3,17,000; working capital support Rs 1,79,000; training costs Rs 1,08,000; market linkage Rs 4,27,000; administration and monitoring Rs 79,000
+- **Also mention:** 17 self-help groups
 
 ### Project 722
 
@@ -123,6 +130,7 @@ Rules, so the answers can be scored:
 - **Goal:** raise child immunisation rate to 82%
 - **Duration:** 20 months
 - **Budget:** Rs 61,30,000 (61.3 lakh)
+- **Also mention:** 24 villages
 - **Do not state:** the current child immunisation rate; a budget breakdown or line-item amounts
 
 ## Writer B
@@ -147,6 +155,7 @@ Rules, so the answers can be scored:
 - **Goal:** raise household monthly income by 10%
 - **Duration:** 26 months
 - **Budget:** Rs 40,50,000 (40.5 lakh)
+- **Also mention:** 97 self-help groups; 49 villages
 - **Do not state:** a budget breakdown or line-item amounts
 
 ### Project 981
@@ -158,6 +167,7 @@ Rules, so the answers can be scored:
 - **Goal:** raise women in paid work to 43%
 - **Duration:** 30 months
 - **Budget:** Rs 98,50,000 (98.5 lakh)
+- **Also mention:** 70 looms
 - **Do not state:** the number of beneficiaries; the current women in paid work; a budget breakdown or line-item amounts
 
 ### Project 130
@@ -181,6 +191,7 @@ Rules, so the answers can be scored:
 - **Duration:** 16 months
 - **Budget:** Rs 10,20,000 (10.2 lakh)
 - **Breakdown:** teacher training Rs 4,28,000; infrastructure upgrades Rs 4,98,000; administration and monitoring Rs 94,000
+- **Also mention:** 11 schools; 185 teachers
 
 ### Project 344
 
@@ -192,6 +203,7 @@ Rules, so the answers can be scored:
 - **Duration:** 25 months
 - **Budget:** Rs 29,80,000 (29.8 lakh)
 - **Breakdown:** working capital support Rs 9,24,000; equipment and inputs Rs 17,25,000; administration and monitoring Rs 3,31,000
+- **Also mention:** 54 villages
 
 ### Project 994
 
@@ -202,6 +214,7 @@ Rules, so the answers can be scored:
 - **Goal:** raise child immunisation rate from 65% to 76%
 - **Duration:** 15 months
 - **Budget:** Rs 1,04,20,000 (1.042 crore)
+- **Also mention:** 114 villages
 - **Do not state:** a budget breakdown or line-item amounts
 
 ### Project 55
@@ -214,6 +227,7 @@ Rules, so the answers can be scored:
 - **Duration:** 21 months
 - **Budget:** Rs 3,80,000 (3.8 lakh)
 - **Breakdown:** teacher training Rs 59,000; infrastructure upgrades Rs 1,22,000; community mobilisers Rs 88,000; learning materials Rs 90,000; administration and monitoring Rs 21,000
+- **Also mention:** 289 teachers
 - **Do not state:** the current learning outcome score
 
 ### Project 974
@@ -226,6 +240,7 @@ Rules, so the answers can be scored:
 - **Duration:** 14 months
 - **Budget:** Rs 66,30,000 (66.3 lakh)
 - **Breakdown:** training costs Rs 21,98,000; equipment and inputs Rs 24,52,000; working capital support Rs 10,17,000; market linkage Rs 6,03,000; administration and monitoring Rs 3,60,000
+- **Also mention:** 480 looms
 
 ### Project 580
 
@@ -237,6 +252,7 @@ Rules, so the answers can be scored:
 - **Duration:** 19 months
 - **Budget:** Rs 46,70,000 (46.7 lakh)
 - **Breakdown:** infrastructure upgrades Rs 12,26,000; community mobilisers Rs 18,56,000; learning materials Rs 6,41,000; teacher training Rs 4,55,000; administration and monitoring Rs 4,92,000
+- **Also mention:** 55 schools
 
 ## Writer C
 
@@ -261,6 +277,7 @@ Rules, so the answers can be scored:
 - **Duration:** 23 months
 - **Budget:** Rs 10,50,000 (10.5 lakh)
 - **Breakdown:** working capital support Rs 78,000; market linkage Rs 9,18,000; administration and monitoring Rs 54,000
+- **Also mention:** 31 self-help groups; 29 villages
 
 ### Project 955
 
@@ -282,6 +299,7 @@ Rules, so the answers can be scored:
 - **Goal:** reduce waterborne disease incidence to 8%
 - **Duration:** 17 months
 - **Budget:** Rs 17,10,000 (17.1 lakh)
+- **Also mention:** 171 handpumps; 36 wells
 - **Do not state:** the current waterborne disease incidence; a budget breakdown or line-item amounts
 
 ### Project 973
@@ -294,6 +312,7 @@ Rules, so the answers can be scored:
 - **Duration:** 17 months
 - **Budget:** Rs 73,70,000 (73.7 lakh)
 - **Breakdown:** diagnostic equipment Rs 7,79,000; mobile camp operations Rs 45,58,000; medical supplies Rs 11,82,000; administration and monitoring Rs 8,51,000
+- **Also mention:** 102 villages; 118 health workers
 - **Do not state:** the current antenatal coverage
 
 ### Project 517
@@ -317,6 +336,7 @@ Rules, so the answers can be scored:
 - **Duration:** 22 months
 - **Budget:** Rs 1,22,90,000 (1.229 crore)
 - **Breakdown:** medical supplies Rs 17,18,000; health worker stipends Rs 24,38,000; diagnostic equipment Rs 49,30,000; mobile camp operations Rs 23,71,000; administration and monitoring Rs 8,33,000
+- **Also mention:** 23 villages
 
 ### Project 397
 
@@ -328,6 +348,7 @@ Rules, so the answers can be scored:
 - **Duration:** 15 months
 - **Budget:** Rs 14,60,000 (14.6 lakh)
 - **Breakdown:** market linkage Rs 87,000; training costs Rs 5,40,000; equipment and inputs Rs 4,64,000; working capital support Rs 2,91,000; administration and monitoring Rs 78,000
+- **Also mention:** 89 self-help groups
 - **Do not state:** the number of beneficiaries
 
 ### Project 1119
@@ -351,6 +372,7 @@ Rules, so the answers can be scored:
 - **Duration:** 11 months
 - **Budget:** Rs 21,90,000 (21.9 lakh)
 - **Breakdown:** teacher training Rs 5,64,000; learning materials Rs 4,76,000; infrastructure upgrades Rs 9,75,000; administration and monitoring Rs 1,75,000
+- **Also mention:** 51 schools; 61 villages
 - **Do not state:** the current attendance rate
 
 ## Writer D
@@ -364,6 +386,7 @@ Rules, so the answers can be scored:
 - **Goal:** raise attendance rate from 71% to 78%
 - **Duration:** 11 months
 - **Budget:** Rs 3,50,000 (3.5 lakh)
+- **Also mention:** 31 schools
 - **Do not state:** a budget breakdown or line-item amounts
 
 ### Project 512
@@ -387,6 +410,7 @@ Rules, so the answers can be scored:
 - **Duration:** 16 months
 - **Budget:** Rs 5,00,000 (5 lakh)
 - **Breakdown:** learning materials Rs 1,06,000; community mobilisers Rs 84,000; infrastructure upgrades Rs 2,25,000; teacher training Rs 55,000; administration and monitoring Rs 30,000
+- **Also mention:** 129 teachers; 75 villages
 
 ### Project 175
 
@@ -398,6 +422,7 @@ Rules, so the answers can be scored:
 - **Duration:** 21 months
 - **Budget:** Rs 17,60,000 (17.6 lakh)
 - **Breakdown:** diagnostic equipment Rs 4,01,000; medical supplies Rs 12,26,000; administration and monitoring Rs 1,33,000
+- **Also mention:** 14 villages
 - **Do not state:** the current child immunisation rate
 
 ### Project 312
@@ -444,6 +469,7 @@ Rules, so the answers can be scored:
 - **Duration:** 21 months
 - **Budget:** Rs 10,60,000 (10.6 lakh)
 - **Breakdown:** teacher training Rs 2,20,000; infrastructure upgrades Rs 1,22,000; learning materials Rs 6,15,000; administration and monitoring Rs 1,03,000
+- **Also mention:** 38 schools; 44 villages
 
 ### Project 280
 
@@ -454,6 +480,7 @@ Rules, so the answers can be scored:
 - **Goal:** add 410 hectares of tree cover
 - **Duration:** 21 months
 - **Budget:** Rs 13,20,000 (13.2 lakh)
+- **Also mention:** 15 villages; 25 self-help groups
 - **Do not state:** a budget breakdown or line-item amounts
 
 ### Project 1272
@@ -466,3 +493,4 @@ Rules, so the answers can be scored:
 - **Duration:** 23 months
 - **Budget:** Rs 45,90,000 (45.9 lakh)
 - **Breakdown:** diagnostic equipment Rs 12,64,000; mobile camp operations Rs 14,14,000; health worker stipends Rs 13,73,000; administration and monitoring Rs 5,39,000
+- **Also mention:** 21 villages; 56 health camps

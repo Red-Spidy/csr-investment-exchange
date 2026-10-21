@@ -26,7 +26,7 @@ import pandas as pd
 from synth.build import load_world
 from synth.catalog import ACTIVITY_DESCRIPTIONS, BUDGET_ITEM_PHRASES, CONTEXT_COUNTS, METRIC_PHRASES, SECTOR_PROFILE
 from textgen.checker import check
-from textgen.router import (REQUEST_TIMEOUT, AllProvidersUnavailable, Router, parse_batch,
+from textgen.router import (PROVIDER_DEFAULTS, REQUEST_TIMEOUT, AllProvidersUnavailable, Router, parse_batch,
                             providers_from_env)
 from textgen.spec import ProposalSpec
 
@@ -148,6 +148,22 @@ def build_specs(projects: pd.DataFrame, ngos: pd.DataFrame) -> list[ProposalSpec
             context=_context(int(p.project_id), p.sector, facts),
         ))
     return specs
+
+
+def specs_for_split(specs: list[ProposalSpec], projects: pd.DataFrame, split: str) -> list[ProposalSpec]:
+    """Only the projects of one split -- e.g. another LLM rewriting the test
+    projects, as a test of a writing style the readers never trained on."""
+    ids = set(projects.loc[projects["split"] == split, "project_id"])
+    return [s for s in specs if s.project_id in ids]
+
+
+def env_for_providers(env: dict[str, str], names: list[str] | None) -> dict[str, str]:
+    """The environment with every other provider's settings removed."""
+    if not names:
+        return dict(env)
+    drop = {d[k] for name, d in PROVIDER_DEFAULTS.items() if name not in names
+            for k in ("key_env", "model_env", "interval_env")}
+    return {k: v for k, v in env.items() if k not in drop}
 
 
 # --------------------------------------------------------------------- prompt
@@ -331,25 +347,33 @@ def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     parser.add_argument("--limit", type=int, default=None, help="generate at most this many new proposals")
     parser.add_argument("--batch", type=int, default=BATCH_SIZE)
+    parser.add_argument("--split", choices=("train", "val", "test"), help="only this split's projects")
+    parser.add_argument("--providers", nargs="*", help="only these providers, e.g. groq")
+    parser.add_argument("--out", type=Path, default=OUT, help=f"output file (default {OUT})")
     args = parser.parse_args()
 
     env = {**(read_env_file(Path(".env")) if Path(".env").exists() else {}), **os.environ}
+    env = env_for_providers(env, args.providers)
     client = httpx.Client(timeout=REQUEST_TIMEOUT)
     providers = providers_from_env(env, client)
     if not providers:
-        raise SystemExit("No usable API keys. Add GEMINI_API_KEY and/or GROQ_API_KEY to .env "
-                         "(see .env.example), then run `make proposals` again.")
+        wanted = args.providers or list(PROVIDER_DEFAULTS)
+        keys = " or ".join(PROVIDER_DEFAULTS[n]["key_env"] for n in wanted if n in PROVIDER_DEFAULTS)
+        raise SystemExit(f"No usable API key for {', '.join(wanted)}. Add {keys} to .env "
+                         "(see .env.example) and run the command again.")
     router = Router(providers, client=client)
     print("providers: " + ", ".join(f"{p.name} ({p.model})" for p in providers))
 
     world = load_world(DATASETS)
     specs = build_specs(world.projects, world.ngos)
+    if args.split:
+        specs = specs_for_split(specs, world.projects, args.split)
     started = time.monotonic()
-    stats = generate(specs, router, OUT, batch_size=args.batch, limit=args.limit, log=print)
-    total = len(_saved_ids(OUT))
+    stats = generate(specs, router, args.out, batch_size=args.batch, limit=args.limit, log=print)
+    total = len(_saved_ids(args.out))
 
     print(f"\naccepted {stats['accepted']}, gave up {stats['gave_up']}, still queued {stats['remaining']} "
-          f"in {(time.monotonic() - started) / 60:.1f} min | {OUT}: {total} of {len(specs)} proposals")
+          f"in {(time.monotonic() - started) / 60:.1f} min | {args.out}: {total} of {len(specs)} proposals")
     print(f"by provider: {stats['by_provider']} | rejection reasons: {stats['rejection_reasons']}")
     print(f"most common rejections: {stats['top_rejections']}")
     if stats["stopped"]:
