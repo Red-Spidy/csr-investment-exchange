@@ -67,3 +67,9 @@ def test_facts_in_the_overlap_of_two_chunks_decode_once_and_correctly(tokenizer)
     assert {k: f.value for k, f in fields.items()} == {
         "duration": 9, "beneficiaries": 3200, "district": "Gaya",
         "amount": 1_800_000, "baseline": 48, "target": 57}
+
+
+def test_an_amount_tag_that_stops_before_lakh_still_reads_the_multiplier(tokenizer):
+    # Seen live: BERT tagged "12" of "Rs 12 lakh" and the amount came out as 12.
+    spans = _spans(TEXT) | {"amount": (TEXT.index("18 lakh"), TEXT.index("18 lakh") + 2)}
+    assert _decode(tokenizer, TEXT, spans)["amount"].value == 1_800_000

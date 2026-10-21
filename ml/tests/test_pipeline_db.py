@@ -28,9 +28,10 @@ def scored_db():
     from pipeline.score import Models, embed_rulebooks, score_project
 
     name = f"csr_ml_{uuid.uuid4().hex[:10]}"
+    url = make_conninfo(ADMIN_URL, dbname=name)
     admin.execute(f"CREATE DATABASE {name}")
     try:
-        with psycopg.connect(make_conninfo(ADMIN_URL, dbname=name)) as conn:
+        with psycopg.connect(url) as conn:
             for f in sorted((ROOT / "db" / "migrations").glob("*.sql")):
                 conn.execute(f.read_text())
             conn.execute((ROOT / "db" / "seed.sql").read_text())
@@ -38,7 +39,7 @@ def scored_db():
             models = Models.load(artifacts)
             embed_rulebooks(conn, models)
             results = {pid: score_project(conn, models, pid) for pid in (1, 2, 8)}
-            yield conn, results
+            yield conn, results, url
     finally:
         admin.execute(f"DROP DATABASE IF EXISTS {name} WITH (FORCE)")
         admin.close()
@@ -49,7 +50,7 @@ def _one(conn, sql, *params):
 
 
 def test_every_model_writes_its_evidence(scored_db):
-    conn, _ = scored_db
+    conn, _, _ = scored_db
     for pid in (1, 2, 8):
         assert _one(conn, "SELECT model_version, embedding IS NOT NULL FROM project_extractions WHERE project_id = %s", pid) == ("bert-v1", True)
         assert _one(conn, "SELECT model_version FROM fraud_scores WHERE project_id = %s", pid) == ("iforest-v1",)
@@ -59,23 +60,41 @@ def test_every_model_writes_its_evidence(scored_db):
 
 def test_the_seeded_fraud_is_caught_and_sent_to_review(scored_db):
     # NGO 4's FY23-24 spending in db/seed.sql carries the planted anomaly.
-    conn, results = scored_db
+    conn, results, _ = scored_db
     assert results[8]["fraud_flag"] is True
     assert _one(conn, "SELECT status::text, decision::text FROM projects p JOIN risk_grades r ON r.project_id = p.id WHERE p.id = 8") == ("flagged", "flagged")
 
 
 def test_an_unfunded_project_takes_the_grades_decision_and_a_funded_one_keeps_its_status(scored_db):
-    conn, results = scored_db
+    conn, results, _ = scored_db
     status, decision = _one(conn, "SELECT p.status::text, r.decision::text FROM projects p JOIN risk_grades r ON r.project_id = p.id WHERE p.id = 2")
     assert status == decision
     assert results[1]["status"] == "active"           # project 1 is funded in the seed
 
 
 def test_rulebooks_and_projects_share_one_vector_space(scored_db):
-    conn, _ = scored_db
+    conn, _, _ = scored_db
     assert _one(conn, "SELECT count(*) FROM csr_rulebooks WHERE embedding IS NOT NULL") == (3,)
     # The education rulebook is semantically closest to an education project, not a sanitation one.
     sim = dict(conn.execute("""SELECT e.project_id, 1 - (e.embedding <=> r.embedding)
                                  FROM project_extractions e, csr_rulebooks r
                                 WHERE r.id = 1 AND e.project_id IN (2, 8)""").fetchall())
     assert sim[2] > sim[8]
+
+
+def test_scoring_through_a_connection_configured_like_the_apis_gives_the_same_answer(scored_db):
+    # The API's pool returns rows as dicts and NUMERIC as float; the pipeline must
+    # not depend on how the caller's connection is set up.
+    import psycopg
+    from psycopg.rows import dict_row
+    from psycopg.types.numeric import FloatLoader
+
+    from pipeline.score import Models, score_project
+
+    conn, results, url = scored_db
+    api_style = psycopg.connect(url, row_factory=dict_row)
+    api_style.adapters.register_loader("numeric", FloatLoader)
+    with api_style:
+        again = score_project(api_style, Models.load(ROOT / "ml" / "artifacts"), 2)
+    assert (again["grade"], again["decision"], again["composite"]) == \
+        (results[2]["grade"], results[2]["decision"], results[2]["composite"])

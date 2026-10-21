@@ -74,3 +74,12 @@ def test_both_sides_of_a_match_are_described_in_the_same_vocabulary():
     for text in (project, rulebook):
         assert "Quality Education" in text and "education" in text and "Bihar" in text
     assert "Gaya" in project
+
+
+def test_no_target_read_means_no_target_metric_rather_than_an_empty_one():
+    # The UI and fn_grade_project both read "no measurable target" from a NULL
+    # target_metric; an object full of nulls would look like a stated target.
+    vague = _reading(fields={"district": _reading().fields["district"]})
+    assert extraction_row(7, vague, "c", [0.0] * 384)["target_metric"] is None
+    no_base = _reading(fields={k: v for k, v in _reading().fields.items() if k != "baseline"})
+    assert json.loads(extraction_row(7, no_base, "c", [0.0] * 384)["target_metric"])["baseline"] is None

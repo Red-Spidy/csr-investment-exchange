@@ -85,8 +85,10 @@ def extraction_row(project_id: int, reading: Reading, canonical: str, embedding)
     return {
         "project_id": project_id,
         "goals": json.dumps([reading.goal] if reading.goal else []),
+        # NULL when no target was read: that is how SQL and the UI see "nothing measurable".
         "target_metric": json.dumps({"name": reading.metric_name, "unit": reading.metric_unit,
-                                     "baseline": _value(reading, "baseline"), "target": _value(reading, "target")}),
+                                     "baseline": _value(reading, "baseline"), "target": _value(reading, "target")})
+                         if _value(reading, "target") is not None else None,
         "beneficiaries": json.dumps({"count": beneficiaries, "group": None}) if beneficiaries is not None else None,
         "geography": json.dumps({"district": district}) if district else None,
         "budget_lines": "[]",
@@ -205,6 +207,13 @@ ON CONFLICT (project_id) DO UPDATE SET metric_name = EXCLUDED.metric_name, metri
 """
 
 
+def _cursor(conn):
+    """A tuple-row cursor whatever the caller's connection uses: the API's pool
+    returns dict rows, and positional access must not depend on that."""
+    from psycopg.rows import tuple_row
+    return conn.cursor(row_factory=tuple_row)
+
+
 def _rows(cur, sql: str, params=()) -> list[dict]:
     cur.execute(sql, params)
     names = [d.name for d in cur.description]
@@ -218,7 +227,7 @@ def _plain(v):
 
 def score_project(conn, models: Models, project_id: int) -> dict:
     """Score one project and grade it, in one transaction."""
-    with conn.cursor() as cur:
+    with _cursor(conn) as cur:
         [project] = _rows(cur, """SELECT id, ngo_id, title, proposal_text, sector, state, requested_amount,
                                          duration_months, num_phases FROM projects WHERE id = %s""", (project_id,))
         [ngo] = _rows(cur, """SELECT n.id, n.established_year,
@@ -251,11 +260,12 @@ def score_project(conn, models: Models, project_id: int) -> dict:
     conn.commit()
     return {"project_id": project_id, "title": project["title"], "grade": grade, **after,
             "composite": _plain(after["composite_score"]), "sdgs": reading.sdgs, "anomaly": anomaly,
+            "metric_name": reading.metric_name, "fields": {k: f.value for k, f in reading.fields.items()},
             "fraud_flag": flagged, "forecast": forecast, "red_flags": reading.red_flags}
 
 
 def embed_rulebooks(conn, models: Models) -> int:
-    with conn.cursor() as cur:
+    with _cursor(conn) as cur:
         rulebooks = _rows(cur, "SELECT id, requirement_text, focus_areas, preferred_states, target_sdgs FROM csr_rulebooks")
         for r in rulebooks:
             text = rulebook_canonical_text(r["requirement_text"], r["focus_areas"], r["preferred_states"],

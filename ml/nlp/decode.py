@@ -8,6 +8,7 @@ pipeline turns into a red flag, never a guessed value.
 
 from __future__ import annotations
 
+import re
 from dataclasses import dataclass
 
 import numpy as np
@@ -16,6 +17,8 @@ from nlp.data import FIELD_ENTITY, TAGS
 from textgen.checker import find_numbers
 
 ENTITY_FIELD = {entity: field for field, entity in FIELD_ENTITY.items()}
+_MULTIPLIER = re.compile(r"\b(lakhs?|lacs?|crores?|million|mn)\b", re.IGNORECASE)
+_MULTIPLIER_AFTER = re.compile(r"\s*(lakhs?|lacs?|crores?|million|mn)\b", re.IGNORECASE)
 
 
 @dataclass(frozen=True)
@@ -50,6 +53,12 @@ def _value(field: str, text: str, start: int, end: int):
     span = text[start:end]
     if field == "district":
         return span.strip() or None
+    if field == "amount" and not _MULTIPLIER.search(span):
+        # A tag that stops at "12" in "Rs 12 lakh" still means 12 lakh: read on
+        # into the multiplier, as the duration does into "years".
+        follows = _MULTIPLIER_AFTER.match(text[end:end + 12])
+        if follows:
+            span += follows.group(0)
     numbers = find_numbers(span)
     if not numbers:
         return None
