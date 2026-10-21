@@ -11,6 +11,9 @@ make migrate seed             # schema + demo scenario
 make test                     # DB assertions, API tests, ML tests
 make psql                     # poke around
 
+make train train-bert         # once: the three models (about 2 h, almost all of it BERT)
+make score                    # replace the seed's placeholder scores with real model output
+
 make api                                # FastAPI on http://localhost:8000
 cd web && npm install && npm run dev    # frontend on http://localhost:5173
 ```
@@ -29,7 +32,7 @@ a local install).
 | `db/migrations/` | Schema, triggers, window views, pgvector matching. Applied in filename order. |
 | `db/tests/` | Assertion tests. Each `RAISE`s on failure, so a non-zero exit is a real regression. |
 | `db/seed.sql` | Deterministic demo scenario. |
-| `ml/` | BERT, XGBoost and Isolation Forest, trained on synthetic project data (not yet built). |
+| `ml/` | Synthetic training data (`synth`, `textgen`), the three models (`fraud`, `impact`, `nlp`) and the scoring pipeline (`pipeline`). How the data was made: `ml/datasets/README.md`. |
 | `api/` | FastAPI over the database (`api/app`). Its tests (`api/tests`) run against real Postgres, in throwaway databases. |
 | `web/` | React + TypeScript frontend. Uses the API when it is running, otherwise an in-browser demo store that ports the rules in `db/migrations/004` and `005`. |
 
@@ -45,6 +48,7 @@ Each claim in the deck maps to code and to a test that proves it:
 | Transactions make double-funding impossible | `fn_commit_funds()` | `02_double_funding.sql`, `06_concurrency.sh` |
 | Failed verification holds funds | `fn_hold_on_failed_verification()` | `01_triggers.sql` |
 | Held money can be refunded, and the books still balance | `fn_terminate_commitment()` | `08_terminate.sql`, `09_terminate_race.sh` |
+| A composite risk grade decides approval, in SQL | `fn_grade_project()`, `fn_review_project()` (`008_risk_grade.sql`) | `10_risk_grade.sql` |
 
 **Anti-double-funding is three independent layers**, each tested separately
 because the outer one short-circuits the others in normal operation:
@@ -112,24 +116,59 @@ which counted each commitment once per monthly report (the seeded 2,400,000 show
 rebuilds everything, or apply the files you are missing, in order:
 `docker exec -i csr_db psql -U csr -d csr_exchange -f - < db/migrations/006_fix_leaderboard_fanout.sql`
 (and the same for `007_terminate_commitment.sql`). 007 creates a function and a trigger, so
-applying it twice fails; apply it once.
+applying it twice fails; apply it once. `008_risk_grade.sql` adds the risk grade and manual
+review; it also creates functions and a table, so apply it once too.
+
+## The ML layer
+
+Three models, trained on synthetic data built to be learnable but not trivial: hidden NGO
+traits drive everything, and the models see only their noisy consequences
+(`ml/datasets/README.md`). Every result below is on NGOs held out of training.
+
+| Model | Job | Result | Details |
+|---|---|---|---|
+| Isolation Forest | Flags NGOs whose spending breaks their own pattern. Never sees a fraud label. | ROC-AUC 0.95; reviewing the top 10% of NGOs catches 22 of 30 fraudulent ones (grouped cross-validation) | `ml/results/fraud_metrics.json` |
+| XGBoost | Forecasts the share of a proposal's claim that will be delivered, with an 80% interval, in the proposal's units | MAE 0.155 vs 0.184 for predicting the mean; R² 0.25 against an oracle ceiling of 0.35; the interval holds 79% of outcomes | `ml/results/impact_metrics.json` |
+| 3 × BERT (`bert-base-cased`) | Reads a proposal: SDGs, outcome metric, stated facts. A fact the text does not state stays empty and becomes a red flag. | On generated test proposals: SDG micro-F1 0.992, metric 100%, facts 100%, no invented facts. Rule baseline: 0.965, 73%, 99.7% | `ml/results/nlp_metrics.json` |
+
+The BERT numbers are on text from the same generator it trained on. On hand-written
+proposals it does worse: it can mistake "80,000 saplings" for a beneficiary count
+(`ml/pipeline/README.md`). The team-written test set in `ml/datasets/human_test/`
+measures that properly.
+
+`make score` writes all three models' evidence into the database, and `fn_grade_project`
+decides. A grade of A or B with no fraud flag and a measurable target is approved;
+everything else waits for a person, `fn_review_project(id, approve, reviewer, note)`, whose
+decision a later regrade never overturns. The formula, how its cut-offs were calibrated,
+and the demo results are in `ml/pipeline/README.md`.
+
+Rebuilding: `make datasets` (byte-identical), `make train` (fraud and impact, about 15 s),
+`make train-bert` (about 2 h), `make proposals` (BERT's training text; needs a Gemini or
+Groq key in `.env`).
 
 ## Status
 
 Built and verified:
 
 - Full schema, triggers, transactions, window views, pgvector matching
-- 17/17 DB checks pass from a clean `reset`
+- 27/27 DB checks pass from a clean `reset`
 - Both two-session concurrency tests pass (double funding, and termination against verification)
 - FastAPI layer (`api/`) with tests against real Postgres, including a real two-session race
 - React frontend (`web/`): six screens, on the API or on an in-browser demo store. `npm test` pins
   the demo's ported matching, window-view and trigger logic to numbers read from this database.
+- Synthetic training data: 500 NGOs, 2,000 projects, 2,416 NGO-years of spending, and 1,300
+  LLM-written proposals, each checked fact by fact
+- Isolation Forest, XGBoost and three BERT readers, evaluated on held-out NGOs
+- Risk grade and manual review in SQL, and a scoring pipeline (`make score`) that writes real
+  model output into the database; an end-to-end test runs it against a throwaway database
 
-Not yet built: synthetic training datasets, NLP & SDG extraction (BERT), impact
-prediction (XGBoost), fraud detection (Isolation Forest), composite risk
-grading, pipeline runner.
+Still to do:
 
-Until the models exist, the extraction, impact, fraud and risk-grade rows in
-`db/seed.sql` are hand-written placeholders, and its embeddings are synthetic
-topic vectors. They keep the matching demo reproducible; the trained models
-will replace them.
+- About 700 Groq-written proposals, with the unlabelled context counts of prompt `p4`; then
+  retrain BERT on Gemini text alone and test it on Groq's, a writer it never saw
+- The team's 40 hand-written proposals, and BERT's score on them
+- An API route and a screen for `fn_review_project` (the SQL exists)
+
+The extraction, impact, fraud and risk-grade rows in `db/seed.sql` are hand-written
+placeholders, and its embeddings synthetic topic vectors, so the database tests and the
+browser demo stay deterministic. `make score` replaces them all with real model output.

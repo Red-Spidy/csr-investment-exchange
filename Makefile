@@ -1,7 +1,7 @@
 DB_URL ?= postgresql://csr:csr@localhost:5433/csr_exchange
 PSQL   := docker exec -i csr_db psql -U csr -d csr_exchange -v ON_ERROR_STOP=1
 
-.PHONY: up down migrate reset seed test-db test-ml test-api test demo psql datasets api web train train-fraud train-impact proposals
+.PHONY: up down migrate reset seed test-db test-ml test-api test demo psql datasets api web train train-fraud train-impact train-bert proposals score
 
 up:
 	docker compose up -d
@@ -55,6 +55,15 @@ train-fraud:
 
 train-impact:
 	PYTHONPATH=ml .venv/bin/python -m impact.train
+
+# The three BERT readers. Slow -- about two hours on an M4 Pro, including the
+# bert-base-cased download -- so it is not part of `make train`.
+train-bert:
+	PYTHONPATH=ml .venv/bin/python -m nlp.train
+
+# Score every project in the database with the trained models, then grade it in SQL.
+score:
+	PYTHONPATH=ml .venv/bin/python -m pipeline.score
 
 # BERT training text via Gemini/Groq (keys in .env). Resumable; LIMIT=300 for a pilot.
 proposals:
