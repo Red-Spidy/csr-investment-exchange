@@ -1,0 +1,567 @@
+{
+  "model_version": "bert-v1",
+  "base_model": "bert-base-cased",
+  "protocol": "fit on train, best epoch by val loss, SDG threshold tuned on val, test scored once",
+  "train_providers": "all",
+  "sdg_threshold": 0.4,
+  "sizes": {
+    "train": 899,
+    "val": 200,
+    "test": 201
+  },
+  "training": {
+    "sdg": {
+      "epochs": [
+        {
+          "epoch": 1,
+          "train_loss": 0.4876266094048818,
+          "val_loss": 0.2978417354822159
+        },
+        {
+          "epoch": 2,
+          "train_loss": 0.21901833434899648,
+          "val_loss": 0.17200878500938416
+        },
+        {
+          "epoch": 3,
+          "train_loss": 0.13633469214042027,
+          "val_loss": 0.11956177264451981
+        },
+        {
+          "epoch": 4,
+          "train_loss": 0.0987298627363311,
+          "val_loss": 0.09268764078617096
+        },
+        {
+          "epoch": 5,
+          "train_loss": 0.08160226504007975,
+          "val_loss": 0.08192847415804863
+        },
+        {
+          "epoch": 6,
+          "train_loss": 0.07482428507672416,
+          "val_loss": 0.07879623696208
+        }
+      ],
+      "best_val_loss": 0.07879623696208
+    },
+    "metric": {
+      "epochs": [
+        {
+          "epoch": 1,
+          "train_loss": 1.867085280418396,
+          "val_loss": 0.6559276020526886
+        },
+        {
+          "epoch": 2,
+          "train_loss": 0.21650709493292702,
+          "val_loss": 0.02307110611349344
+        },
+        {
+          "epoch": 3,
+          "train_loss": 0.01578155018389225,
+          "val_loss": 0.006890590330585838
+        },
+        {
+          "epoch": 4,
+          "train_loss": 0.007203623779738943,
+          "val_loss": 0.004550911206752062
+        },
+        {
+          "epoch": 5,
+          "train_loss": 0.0055016576374570525,
+          "val_loss": 0.003766787340864539
+        },
+        {
+          "epoch": 6,
+          "train_loss": 0.004783985082887941,
+          "val_loss": 0.0035274232923984527
+        }
+      ],
+      "best_val_loss": 0.0035274232923984527
+    },
+    "fields": {
+      "epochs": [
+        {
+          "epoch": 1,
+          "train_loss": 0.4688078053543965,
+          "val_loss": 0.004601038976106793
+        },
+        {
+          "epoch": 2,
+          "train_loss": 0.0037600801041763688,
+          "val_loss": 0.0009267019957769662
+        },
+        {
+          "epoch": 3,
+          "train_loss": 0.0010122626836204694,
+          "val_loss": 0.0013485236041015014
+        },
+        {
+          "epoch": 4,
+          "train_loss": 0.0009046532172295782,
+          "val_loss": 0.0010013965534744784
+        }
+      ],
+      "best_val_loss": 0.0009267019957769662
+    }
+  },
+  "test": {
+    "bert": {
+      "n": 201,
+      "sdg": {
+        "micro_precision": 0.9838,
+        "micro_recall": 1.0,
+        "micro_f1": 0.9918,
+        "macro_f1": 0.973,
+        "exact_match": 0.9602,
+        "per_sdg": {
+          "1": {
+            "support": 24,
+            "precision": 1.0,
+            "recall": 1.0,
+            "f1": 1.0
+          },
+          "2": {
+            "support": 77,
+            "precision": 1.0,
+            "recall": 1.0,
+            "f1": 1.0
+          },
+          "3": {
+            "support": 66,
+            "precision": 0.9851,
+            "recall": 1.0,
+            "f1": 0.9925
+          },
+          "4": {
+            "support": 99,
+            "precision": 1.0,
+            "recall": 1.0,
+            "f1": 1.0
+          },
+          "5": {
+            "support": 70,
+            "precision": 1.0,
+            "recall": 1.0,
+            "f1": 1.0
+          },
+          "6": {
+            "support": 52,
+            "precision": 1.0,
+            "recall": 1.0,
+            "f1": 1.0
+          },
+          "7": {
+            "support": 10,
+            "precision": 0.6667,
+            "recall": 1.0,
+            "f1": 0.8
+          },
+          "8": {
+            "support": 36,
+            "precision": 1.0,
+            "recall": 1.0,
+            "f1": 1.0
+          },
+          "9": {
+            "support": 56,
+            "precision": 1.0,
+            "recall": 1.0,
+            "f1": 1.0
+          },
+          "11": {
+            "support": 5,
+            "precision": 0.8333,
+            "recall": 1.0,
+            "f1": 0.9091
+          },
+          "12": {
+            "support": 5,
+            "precision": 1.0,
+            "recall": 1.0,
+            "f1": 1.0
+          },
+          "13": {
+            "support": 22,
+            "precision": 1.0,
+            "recall": 1.0,
+            "f1": 1.0
+          },
+          "14": {
+            "support": 10,
+            "precision": 0.9091,
+            "recall": 1.0,
+            "f1": 0.9524
+          },
+          "15": {
+            "support": 15,
+            "precision": 0.9375,
+            "recall": 1.0,
+            "f1": 0.9677
+          }
+        }
+      },
+      "metric_accuracy": 1.0,
+      "fields": {
+        "counts": {
+          "correct": 1108,
+          "wrong": 0,
+          "missed": 0,
+          "hallucinated": 0,
+          "correct_null": 98
+        },
+        "hallucination_rate": 0.0,
+        "accuracy_on_stated": 1.0,
+        "per_field": {
+          "baseline": {
+            "correct": 123,
+            "wrong": 0,
+            "missed": 0,
+            "hallucinated": 0,
+            "correct_null": 78
+          },
+          "target": {
+            "correct": 201,
+            "wrong": 0,
+            "missed": 0,
+            "hallucinated": 0,
+            "correct_null": 0
+          },
+          "beneficiaries": {
+            "correct": 181,
+            "wrong": 0,
+            "missed": 0,
+            "hallucinated": 0,
+            "correct_null": 20
+          },
+          "amount": {
+            "correct": 201,
+            "wrong": 0,
+            "missed": 0,
+            "hallucinated": 0,
+            "correct_null": 0
+          },
+          "duration": {
+            "correct": 201,
+            "wrong": 0,
+            "missed": 0,
+            "hallucinated": 0,
+            "correct_null": 0
+          },
+          "district": {
+            "correct": 201,
+            "wrong": 0,
+            "missed": 0,
+            "hallucinated": 0,
+            "correct_null": 0
+          }
+        }
+      }
+    },
+    "rule_baseline": {
+      "n": 201,
+      "sdg": {
+        "micro_precision": 0.9319,
+        "micro_recall": 1.0,
+        "micro_f1": 0.9647,
+        "macro_f1": 0.9776,
+        "exact_match": 0.8308,
+        "per_sdg": {
+          "1": {
+            "support": 24,
+            "precision": 0.8889,
+            "recall": 1.0,
+            "f1": 0.9412
+          },
+          "2": {
+            "support": 77,
+            "precision": 1.0,
+            "recall": 1.0,
+            "f1": 1.0
+          },
+          "3": {
+            "support": 66,
+            "precision": 0.8919,
+            "recall": 1.0,
+            "f1": 0.9429
+          },
+          "4": {
+            "support": 99,
+            "precision": 0.9519,
+            "recall": 1.0,
+            "f1": 0.9754
+          },
+          "5": {
+            "support": 70,
+            "precision": 0.7527,
+            "recall": 1.0,
+            "f1": 0.8589
+          },
+          "6": {
+            "support": 52,
+            "precision": 1.0,
+            "recall": 1.0,
+            "f1": 1.0
+          },
+          "7": {
+            "support": 10,
+            "precision": 1.0,
+            "recall": 1.0,
+            "f1": 1.0
+          },
+          "8": {
+            "support": 36,
+            "precision": 1.0,
+            "recall": 1.0,
+            "f1": 1.0
+          },
+          "9": {
+            "support": 56,
+            "precision": 1.0,
+            "recall": 1.0,
+            "f1": 1.0
+          },
+          "11": {
+            "support": 5,
+            "precision": 1.0,
+            "recall": 1.0,
+            "f1": 1.0
+          },
+          "12": {
+            "support": 5,
+            "precision": 1.0,
+            "recall": 1.0,
+            "f1": 1.0
+          },
+          "13": {
+            "support": 22,
+            "precision": 1.0,
+            "recall": 1.0,
+            "f1": 1.0
+          },
+          "14": {
+            "support": 10,
+            "precision": 1.0,
+            "recall": 1.0,
+            "f1": 1.0
+          },
+          "15": {
+            "support": 15,
+            "precision": 0.9375,
+            "recall": 1.0,
+            "f1": 0.9677
+          }
+        }
+      },
+      "metric_accuracy": 0.7313,
+      "fields": {
+        "counts": {
+          "correct": 1105,
+          "wrong": 3,
+          "missed": 0,
+          "hallucinated": 1,
+          "correct_null": 97
+        },
+        "hallucination_rate": 0.0102,
+        "accuracy_on_stated": 0.9973,
+        "per_field": {
+          "baseline": {
+            "correct": 123,
+            "wrong": 0,
+            "missed": 0,
+            "hallucinated": 1,
+            "correct_null": 77
+          },
+          "target": {
+            "correct": 201,
+            "wrong": 0,
+            "missed": 0,
+            "hallucinated": 0,
+            "correct_null": 0
+          },
+          "beneficiaries": {
+            "correct": 178,
+            "wrong": 3,
+            "missed": 0,
+            "hallucinated": 0,
+            "correct_null": 20
+          },
+          "amount": {
+            "correct": 201,
+            "wrong": 0,
+            "missed": 0,
+            "hallucinated": 0,
+            "correct_null": 0
+          },
+          "duration": {
+            "correct": 201,
+            "wrong": 0,
+            "missed": 0,
+            "hallucinated": 0,
+            "correct_null": 0
+          },
+          "district": {
+            "correct": 201,
+            "wrong": 0,
+            "missed": 0,
+            "hallucinated": 0,
+            "correct_null": 0
+          }
+        }
+      }
+    },
+    "bert_written_by_gemini": {
+      "n": 201,
+      "sdg": {
+        "micro_precision": 0.9838,
+        "micro_recall": 1.0,
+        "micro_f1": 0.9918,
+        "macro_f1": 0.973,
+        "exact_match": 0.9602,
+        "per_sdg": {
+          "1": {
+            "support": 24,
+            "precision": 1.0,
+            "recall": 1.0,
+            "f1": 1.0
+          },
+          "2": {
+            "support": 77,
+            "precision": 1.0,
+            "recall": 1.0,
+            "f1": 1.0
+          },
+          "3": {
+            "support": 66,
+            "precision": 0.9851,
+            "recall": 1.0,
+            "f1": 0.9925
+          },
+          "4": {
+            "support": 99,
+            "precision": 1.0,
+            "recall": 1.0,
+            "f1": 1.0
+          },
+          "5": {
+            "support": 70,
+            "precision": 1.0,
+            "recall": 1.0,
+            "f1": 1.0
+          },
+          "6": {
+            "support": 52,
+            "precision": 1.0,
+            "recall": 1.0,
+            "f1": 1.0
+          },
+          "7": {
+            "support": 10,
+            "precision": 0.6667,
+            "recall": 1.0,
+            "f1": 0.8
+          },
+          "8": {
+            "support": 36,
+            "precision": 1.0,
+            "recall": 1.0,
+            "f1": 1.0
+          },
+          "9": {
+            "support": 56,
+            "precision": 1.0,
+            "recall": 1.0,
+            "f1": 1.0
+          },
+          "11": {
+            "support": 5,
+            "precision": 0.8333,
+            "recall": 1.0,
+            "f1": 0.9091
+          },
+          "12": {
+            "support": 5,
+            "precision": 1.0,
+            "recall": 1.0,
+            "f1": 1.0
+          },
+          "13": {
+            "support": 22,
+            "precision": 1.0,
+            "recall": 1.0,
+            "f1": 1.0
+          },
+          "14": {
+            "support": 10,
+            "precision": 0.9091,
+            "recall": 1.0,
+            "f1": 0.9524
+          },
+          "15": {
+            "support": 15,
+            "precision": 0.9375,
+            "recall": 1.0,
+            "f1": 0.9677
+          }
+        }
+      },
+      "metric_accuracy": 1.0,
+      "fields": {
+        "counts": {
+          "correct": 1108,
+          "wrong": 0,
+          "missed": 0,
+          "hallucinated": 0,
+          "correct_null": 98
+        },
+        "hallucination_rate": 0.0,
+        "accuracy_on_stated": 1.0,
+        "per_field": {
+          "baseline": {
+            "correct": 123,
+            "wrong": 0,
+            "missed": 0,
+            "hallucinated": 0,
+            "correct_null": 78
+          },
+          "target": {
+            "correct": 201,
+            "wrong": 0,
+            "missed": 0,
+            "hallucinated": 0,
+            "correct_null": 0
+          },
+          "beneficiaries": {
+            "correct": 181,
+            "wrong": 0,
+            "missed": 0,
+            "hallucinated": 0,
+            "correct_null": 20
+          },
+          "amount": {
+            "correct": 201,
+            "wrong": 0,
+            "missed": 0,
+            "hallucinated": 0,
+            "correct_null": 0
+          },
+          "duration": {
+            "correct": 201,
+            "wrong": 0,
+            "missed": 0,
+            "hallucinated": 0,
+            "correct_null": 0
+          },
+          "district": {
+            "correct": 201,
+            "wrong": 0,
+            "missed": 0,
+            "hallucinated": 0,
+            "correct_null": 0
+          }
+        }
+      }
+    }
+  }
+}

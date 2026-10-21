@@ -6,8 +6,13 @@ produces byte-identical files, so anyone on the team can regenerate them.
 | File | Rows | One row per | Used to train |
 |---|---:|---|---|
 | `ngos.csv` | 500 | NGO | Features for the impact model |
-| `projects.csv` | 2,000 | Project proposal and its outcome | XGBoost (impact); BERT once proposal text is added |
+| `projects.csv` | 2,000 | Project proposal and its outcome | XGBoost (impact); labels for BERT |
 | `spending.csv` | 2,416 | NGO per financial year, FY19-20 to FY23-24 | Isolation Forest (fraud) |
+| `proposals.jsonl` | 1,300 | Written proposal for one project | BERT (SDGs, metric, fields) |
+
+The CSVs come from `make datasets`. The proposal text comes from `make proposals`
+(code in `ml/textgen/`), which needs API keys and is not byte-reproducible --
+see [Proposal text](#proposal-text) below.
 
 ## How the world works
 
@@ -90,3 +95,50 @@ in reality.
 
 - [RED Lab FY24 sector shares (exchange4media)](https://www.exchange4media.com/marketing-news/csr-spending-nears-rs-30000-crore-in-fy24-144363.html)
 - [National CSR Portal FY24 totals (The CSR Journal)](https://thecsrjournal.in/india-inc-spent-rs-34908-75-crore-on-csr-in-fy24-national-csr-portal/)
+
+## Proposal text
+
+`proposals.jsonl` holds one LLM-written proposal per project: 1,300 so far,
+all by Gemini 3.5 Flash-Lite. About 700 more are planned from a second model
+(Groq), so BERT can be tested on a writing style it never trained on.
+
+**How a proposal is made.** Each project's facts -- NGO, district, activities,
+beneficiaries, baseline and target, duration, budget -- go to the LLM on a fact
+sheet whose labels, order and wording are varied per project (activity
+descriptions, metric phrasing and budget item names all have alternatives),
+with one of 8 writing styles and 4 target lengths. The LLM writes only the
+prose; every label is known before the text exists.
+
+**Every proposal is checked** (`ml/textgen/checker.py`) and regenerated, up to
+three tries, unless it:
+
+- states every fact it was given, with the exact number (lakh, crore and Indian
+  digit grouping understood);
+- describes every activity -- the SDG labels follow from the activities;
+- leaves out what it was told to leave out;
+- invents no number (citations of Section 135 of the Companies Act, 2013 are
+  allowed; 166 proposals make one);
+- does not name SDGs outright, so BERT must infer them from what the project does.
+
+**Deliberate gaps teach abstention.** 282 proposals give no baseline, 210 no
+beneficiary count and 397 no budget breakdown. A reader that fills those in is
+hallucinating, and the evaluation counts it.
+
+| Column | Meaning |
+|---|---|
+| `project_id` | Joins to `projects.csv`, which holds the SDGs, metric and true values |
+| `text` | The proposal |
+| `spans` | Character positions of each stated fact, the field extractor's labels |
+| `provider`, `model` | Which LLM wrote it |
+| `style`, `length_words` | What it was asked for |
+| `prompt_version` | `p2` (305 proposals) or `p3` (995): p3 adds varied metric and budget wording and allows legal citations |
+
+Measured on the corpus: activity names copied word for word in 10.7% of
+activities (96% before the fact sheet was varied); median length 142 words
+(54-330).
+
+**Limitations.** One LLM so far, so one model's habits. Invented details written
+in words ("twelve-year-old Meena") are not checked; only numbers are. Because
+the checker requires each activity's keywords, a keyword baseline is flattered
+on this corpus -- compare readers on text the checker never shaped.
+
