@@ -4,6 +4,9 @@ pytest==9.1.1
 joblib==1.6.0
 scikit-learn==1.9.1
 xgboost==3.4.1
+torch==2.14.0
+transformers==5.17.0
+sentence-transformers==6.0.1
 fastapi==0.156.1
 uvicorn==0.54.0
 psycopg[binary]==3.3.5

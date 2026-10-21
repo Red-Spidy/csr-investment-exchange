@@ -21,4 +21,8 @@ def tokenizer():
     offline. Training-time code uses bert-base-cased; the alignment logic
     under test is identical for any fast tokenizer."""
     from transformers import AutoTokenizer
-    return AutoTokenizer.from_pretrained("sentence-transformers/all-MiniLM-L6-v2", local_files_only=True)
+    name = "sentence-transformers/all-MiniLM-L6-v2"
+    try:
+        return AutoTokenizer.from_pretrained(name, local_files_only=True)
+    except OSError:                       # a fresh machine or CI: fetch it once
+        return AutoTokenizer.from_pretrained(name)

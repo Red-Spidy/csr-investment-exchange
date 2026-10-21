@@ -1,0 +1,58 @@
+# Runs the same make targets as a laptop does: a real pgvector Postgres from
+# docker-compose.yml, then the database, API and ML tests, and the frontend.
+# Tests that need the trained models (1.2 GB, gitignored) skip themselves here.
+name: CI
+
+on:
+  push:
+    branches: [master]
+  pull_request:
+
+jobs:
+  database-api-ml:
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Start Postgres with pgvector
+        run: make up
+
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.14"
+          cache: pip
+
+      - name: Install Python dependencies
+        # CPU-only PyTorch: the runner has no GPU, and the default build is several GB.
+        run: |
+          python -m venv .venv
+          .venv/bin/pip install --extra-index-url https://download.pytorch.org/whl/cpu -r requirements.txt
+
+      - name: Database tests
+        run: make migrate seed test-db
+
+      - name: API tests
+        run: make test-api
+
+      - name: ML tests
+        run: make test-ml
+
+  web:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    defaults:
+      run:
+        working-directory: web
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-node@v5
+        with:
+          node-version: "24"
+          cache: npm
+          cache-dependency-path: web/package-lock.json
+
+      - run: npm ci
+      - run: npm test
+      - run: npm run build
