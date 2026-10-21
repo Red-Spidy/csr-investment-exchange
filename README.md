@@ -1,5 +1,7 @@
 # CSR Investment Exchange
 
+[![CI](https://github.com/Red-Spidy/csr-investment-exchange/actions/workflows/ci.yml/badge.svg)](https://github.com/Red-Spidy/csr-investment-exchange/actions/workflows/ci.yml)
+
 AI-scored, SQL-automated matching of corporate CSR budgets to NGO projects.
 Companion implementation for the ADV_SQL review deck.
 
@@ -132,12 +134,14 @@ traits drive everything, and the models see only their noisy consequences
 |---|---|---|---|
 | Isolation Forest | Flags NGOs whose spending breaks their own pattern. Never sees a fraud label. | ROC-AUC 0.95; reviewing the top 10% of NGOs catches 22 of 30 fraudulent ones (grouped cross-validation) | `ml/results/fraud_metrics.json` |
 | XGBoost | Forecasts the share of a proposal's claim that will be delivered, with an 80% interval, in the proposal's units | MAE 0.155 vs 0.184 for predicting the mean; R² 0.25 against an oracle ceiling of 0.35; the interval holds 79% of outcomes | `ml/results/impact_metrics.json` |
-| 3 × BERT (`bert-base-cased`) | Reads a proposal: SDGs, outcome metric, stated facts. A fact the text does not state stays empty and becomes a red flag. | On generated test proposals: SDG micro-F1 0.992, metric 100%, facts 100%, no invented facts. Rule baseline: 0.965, 73%, 99.7% | `ml/results/nlp_metrics.json` |
+| 3 × BERT (`bert-base-cased`) | Reads a proposal: SDGs, outcome metric, stated facts. A fact the text does not state stays empty and becomes a red flag. | On 304 generated test proposals: SDG micro-F1 0.992, metric 100%, facts 99.9%, no invented facts. Rule baseline: 0.960, 75%, 99.8%, and it invents 2.5% of facts, fooled by counts of schools or villages | `ml/results/nlp_metrics.json` |
 
-The BERT numbers are on text from the same generator it trained on. On hand-written
-proposals it does worse: it can mistake "80,000 saplings" for a beneficiary count
-(`ml/pipeline/README.md`). The team-written test set in `ml/datasets/human_test/`
-measures that properly.
+The BERT numbers are on text from the same generator it trained on. On the eight
+hand-written demo proposals it does worse: it still reads "80,000 saplings" as a
+beneficiary count and misses baselines phrased unusually ("only 54% of pregnant women
+complete..."), though retraining with unlabelled counts fixed "12 schools" and "60 toilet
+blocks" (`ml/pipeline/README.md`). The team-written test set in `ml/datasets/human_test/`
+measures this properly.
 
 `make score` writes all three models' evidence into the database, and `fn_grade_project`
 decides. A grade of A or B with no fraud flag and a measurable target is approved;
@@ -165,6 +169,8 @@ Built and verified:
 - Isolation Forest, XGBoost and three BERT readers, evaluated on held-out NGOs
 - Risk grade and manual review in SQL, and a scoring pipeline (`make score`) that writes real
   model output into the database; an end-to-end test runs it against a throwaway database
+- GitHub Actions CI (`.github/workflows/ci.yml`): the database, API and ML tests against a real
+  pgvector Postgres, and the frontend's tests and build, on every push
 - Live submission: an NGO submits a proposal on the Projects page and the models score it in a few
   seconds; a reviewer approves or rejects what the grade flagged; a company writes a new rulebook on
   the Matching page. The first submission after `make api` also loads the models. The in-browser demo
@@ -176,7 +182,7 @@ Still to do:
   `make eval-unseen` (Groq rewrites the test projects; BERT never trained on Groq's text)
 - The team's 40 hand-written proposals from `ml/datasets/human_test/fact_sheets.md`, then
   `make eval-human`
-- DevOps from the deck: a GitHub Actions workflow and Docker images for the API and frontend
+- Docker images for the API and frontend (Postgres already runs in Docker, and CI uses it)
 
 The extraction, impact, fraud and risk-grade rows in `db/seed.sql` are hand-written
 placeholders, and its embeddings synthetic topic vectors, so the database tests and the

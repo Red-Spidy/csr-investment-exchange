@@ -76,27 +76,29 @@ at BERT on text it did not train on. `make demo && make score`:
 | Project | Grade | Outcome | Forecast |
 |---|---|---|---|
 | 1 Barmer attendance | B | funded already, status kept | +4.16 points of attendance [2.65, 6.86] |
-| 2 Gaya digital classrooms | B | approved | outcome score 0.68 (baseline not read) |
-| 3 Vidarbha maternal health | C | review | outcome score 0.61 (baseline not read) |
-| 4 Jaisalmer handpumps | D | review: fraud flag | outcome score 0.53 |
-| 5 Western Ghats reforestation | D | review | +131 hectares [94, 271] |
-| 6 Bargarh weavers | C | review | +13.5% income [8.0, 20.3] |
-| 7 Library expansion | A | review: no measurable target | outcome score 0.74 |
-| 8 Sanitation blocks | D | review: fraud flag | outcome score 0.64 |
+| 2 Gaya digital classrooms | B | approved | 0.68 of the claim (baseline not read) |
+| 3 Vidarbha maternal health | C | review | 0.61 of the claim (baseline not read) |
+| 4 Jaisalmer handpumps | D | review: fraud flag | 0.53 of the claim |
+| 5 Western Ghats reforestation | C | review | +206 hectares [118, 301] |
+| 6 Bargarh weavers | B | approved | +13.5% income [8.0, 20.3] |
+| 7 Library expansion | B | review: no measurable target | 0.63 of the claim |
+| 8 Sanitation blocks | D | review: fraud flag | 0.53 of the claim |
 
 The Isolation Forest flags NGO 4, whose FY23-24 spending in the seed carries the planted
 anomaly, so both its projects go to review with no hand-written score involved.
 
 ## Known limitations
 
-- **BERT reads hand-written text worse than generated text.** On the demo proposals it
-  mistook counts of things for beneficiaries ("80,000 saplings", "12 schools", "60 toilet
-  blocks") and missed baselines phrased unusually ("only 54% of pregnant women
-  complete..."). The cause is the first corpus: the checker rejected every number that was
-  not a fact, so every number BERT trained on *was* one. Prompt `p4` adds unlabelled
-  context counts (villages, schools, saplings) to 71% of fact sheets. The next generated
-  batch and a retrain should fix the beneficiary confusion; the team-written test set
-  (`ml/datasets/human_test/`) is where to measure it.
+- **BERT reads hand-written text worse than generated text.** The first BERT, trained on
+  1,300 proposals, mistook counts of things for beneficiaries on the demo proposals
+  ("80,000 saplings", "12 schools", "60 toilet blocks"): the checker had rejected every
+  number that was not a fact, so every number it trained on *was* one. Retrained on all
+  2,000, with unlabelled counts in 507 of them (prompt `p4`), it no longer reads "12
+  schools" or "60 toilet blocks" as beneficiaries and now reads project 1's duration. It
+  still takes "80,000 saplings" for a count (as 80), and still misses baselines phrased as
+  "score an average of 48%" or "only 54% of pregnant women complete", so projects 2-4 are
+  forecast as a share of the claim rather than in points. The team-written test set
+  (`ml/datasets/human_test/`) is where to measure this properly.
 - **The grade is calibrated on synthetic outcomes.** Its weights come from the deck; its
   cut-offs from the synthetic world. Treat it as a demonstration of the mechanism, not a
   validated credit model.
