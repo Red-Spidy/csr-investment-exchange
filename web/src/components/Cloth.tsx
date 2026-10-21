@@ -4,9 +4,10 @@ import { inrCompact } from '../lib/format'
  * The signature visual: money drawn as cloth. Width is rupees. A locked phase
  * is undyed linen, a released phase is dyed indigo, a phase waiting on a
  * reviewer is in the turmeric vat, a held phase is crosshatched in madder, and
- * budget not yet placed is an empty loom.
+ * budget not yet placed is an empty loom. A phase refunded when its commitment was
+ * terminated is an empty loom again: the money went back to the company.
  */
-export type Tone = 'released' | 'locked' | 'review' | 'held' | 'free'
+export type Tone = 'released' | 'locked' | 'review' | 'held' | 'free' | 'returned'
 
 export interface Band {
   key: string | number
@@ -24,6 +25,7 @@ export const TONE_NAME: Record<Tone, string> = {
   review: 'Awaiting review',
   held: 'Held',
   free: 'Unplaced',
+  returned: 'Refunded',
 }
 
 interface ClothProps {

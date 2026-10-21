@@ -6,13 +6,13 @@ import { useExchange, useQuery } from '../data/store'
 import type { ProjectStatus } from '../data/types'
 import { commitmentBands, shortCompany, shortTitle, sumByTone } from '../lib/bands'
 import { inrCompact, pct, timeShort } from '../lib/format'
-import { TXN_LABEL } from '../lib/labels'
+import { TXN_LABEL, TXN_TONE } from '../lib/labels'
 
 const STAGES: { title: string; hint: string; statuses: ProjectStatus[] }[] = [
   { title: 'Being scored', hint: 'Proposal read, impact and fraud scored', statuses: ['pending', 'scoring'] },
   { title: 'Approved', hint: 'Cleared to be matched with a company', statuses: ['approved'] },
   { title: 'Funded', hint: 'Money locked, phases releasing', statuses: ['matched', 'active'] },
-  { title: 'Closed', hint: 'Every phase released', statuses: ['closed'] },
+  { title: 'Closed', hint: 'Every phase released, or ended early', statuses: ['closed', 'terminated'] },
 ]
 
 export function Exchange() {
@@ -31,7 +31,8 @@ export function Exchange() {
     () => (commitments ?? []).filter(c => c.commitment.companyId === companyId), [commitments, companyId])
 
   const { bands, totals, remaining } = useMemo(() => {
-    const phaseBands = mine.flatMap(commitmentBands)
+    // A refunded phase is back in the unplaced budget, so it is not drawn as placed.
+    const phaseBands = mine.flatMap(commitmentBands).filter(b => b.tone !== 'returned')
     const placed = phaseBands.reduce((t, b) => t + b.amount, 0)
     const left = company ? Math.max(0, company.mandatedBudget - placed) : 0
     const all: Band[] = [...phaseBands]
@@ -42,13 +43,15 @@ export function Exchange() {
   if (!company || !commitments || !scorecard || !ledger || !rulebooks || (rulebook && !report)) return <Loading page="Exchange">Loading the exchange</Loading>
 
   const name = shortCompany(company.name)
-  const awaiting = mine.flatMap(c => c.milestones.map(m => ({ c, m }))).filter(x => x.m.verification === 'submitted')
-  const held = mine.flatMap(c => c.phases.map(p => ({ c, p }))).filter(x => x.p.status === 'held')
+  const open = mine.filter(c => c.commitment.status === 'active')
+  const awaiting = open.flatMap(c => c.milestones.map(m => ({ c, m }))).filter(x => x.m.verification === 'submitted')
+  const held = open.flatMap(c => c.phases.map(p => ({ c, p }))).filter(x => x.p.status === 'held')
   const topMatch = report?.ranked[0]
   const mineIds = new Set(mine.map(c => c.commitment.id))
   const recent = [...(ledger ?? [])].filter(l => mineIds.has(l.commitmentId)).reverse().slice(0, 5)
   const stageProjects = (statuses: ProjectStatus[]) => (scorecard ?? []).filter(p => statuses.includes(p.status))
-  const flagged = (scorecard ?? []).filter(p => p.status === 'flagged')
+  // A funded project is flagged when a milestone fails; that shows under "needs next" instead.
+  const flagged = (scorecard ?? []).filter(p => p.status === 'flagged' && p.commitmentId === null)
 
   const legend: { tone: Tone; value?: string }[] = (['released', 'review', 'locked', 'held', 'free'] as Tone[])
     .filter(t => totals[t] > 0)
@@ -136,9 +139,9 @@ export function Exchange() {
               <li key={`h${p.id}`}>
                 <div>
                   <strong>Phase {p.phaseNo} is held</strong>
-                  <p className="muted small">{shortTitle(c.project.title)}. {inrCompact(p.amount)} stays locked until someone decides what happens next.</p>
+                  <p className="muted small">{shortTitle(c.project.title)}. {inrCompact(p.amount)} stays locked. Ending the commitment returns the unreleased money to {name}.</p>
                 </div>
-                <Link className="btn btn--small btn--quiet" to="/funds">Open</Link>
+                <Link className="btn btn--small btn--quiet" to="/funds">Decide</Link>
               </li>
             ))}
             {topMatch && (
@@ -172,7 +175,7 @@ export function Exchange() {
             <ul className="feed">
               {recent.map(l => (
                 <li key={l.id}>
-                  <Pill tone={l.type === 'release' ? 'indigo' : l.type === 'hold' ? 'madder' : 'linen'}>
+                  <Pill tone={TXN_TONE[l.type]}>
                     {TXN_LABEL[l.type]}
                   </Pill>
                   <span className="feed__note">{l.note}</span>

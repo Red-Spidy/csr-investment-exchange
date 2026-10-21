@@ -2,7 +2,7 @@ import { useMemo, useState } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
 import { Cloth } from '../components/Cloth'
 import { Grade, Meter, PageHead, RangeBar, ScoreStack, Section, StatusPill, TableScroll, Loading } from '../components/ui'
-import type { ProjectDetail } from '../data/api'
+import type { CommitmentView, ProjectDetail } from '../data/api'
 import { useQuery } from '../data/store'
 import type { SpendingHistory } from '../data/types'
 import { commitmentBands } from '../lib/bands'
@@ -209,13 +209,22 @@ function ProjectView({ d }: { d: ProjectDetail }) {
 
       {commitment && (
         <Section id="funding" title="Funding"
-          hint={`${commitment.companyName} has locked ${inrCompact(commitment.commitment.amount)} for this project.`}>
+          hint={fundingHint(commitment)}>
           <Cloth bands={commitmentBands(commitment)} height={56} label="Funding by phase" />
           <p className="feed__more"><Link to="/funds" className="link-btn">Open the milestones</Link></p>
         </Section>
       )}
     </article>
   )
+}
+
+function fundingHint({ commitment: c, companyName, phases }: CommitmentView): string {
+  const paid = phases.filter(p => p.status === 'released').reduce((t, p) => t + p.amount, 0)
+  if (c.status === 'completed') return `${companyName} paid all ${inrCompact(c.amount)}, phase by phase.`
+  if (c.status === 'cancelled') {
+    return `${companyName} terminated this commitment. ${inrCompact(paid)} was paid; the other ${inrCompact(c.amount - paid)} went back to its budget.`
+  }
+  return `${companyName} has locked ${inrCompact(c.amount)} for this project.`
 }
 
 function impactVerdict(predicted: number, promised: number | null, unit: string): string {

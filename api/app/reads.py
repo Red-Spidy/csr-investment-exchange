@@ -118,8 +118,8 @@ def project_detail(conn: Connection, project_id: int) -> dict[str, Any]:
         (project["ngoId"],),
     )
     open_commitment = conn.execute(
-        """SELECT id FROM commitments WHERE project_id = %s AND status <> 'cancelled'
-            ORDER BY (status = 'active') DESC, id LIMIT 1""",
+        """SELECT id FROM commitments WHERE project_id = %s
+            ORDER BY (status = 'active') DESC, (status <> 'cancelled') DESC, id LIMIT 1""",
         (project_id,),
     ).fetchone()
     views = commitment_views(conn, [open_commitment["id"]]) if open_commitment else []

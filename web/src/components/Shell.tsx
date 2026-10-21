@@ -35,7 +35,8 @@ export function Shell() {
   const { data: report } = useQuery(
     api => (rulebook ? api.matches(rulebook.id) : Promise.resolve(undefined)), [rulebook?.id])
 
-  const awaiting = (commitments ?? []).flatMap(c => c.milestones).filter(m => m.verification === 'submitted').length
+  const awaiting = (commitments ?? []).filter(c => c.commitment.status === 'active')
+    .flatMap(c => c.milestones).filter(m => m.verification === 'submitted').length
   const matchCount = report?.ranked.length ?? 0
 
   const links: { to: string; label: string; icon: keyof typeof ICONS; badge?: number; end?: boolean }[] = [

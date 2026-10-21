@@ -1,6 +1,6 @@
-"""Write side. Money moves only through fn_commit_funds and the milestone triggers;
-this module calls them and then reads back what they did, so the "receipt" the UI
-shows is the database's own record and not a guess.
+"""Write side. Money moves only through fn_commit_funds, fn_terminate_commitment and
+the milestone triggers; this module calls them and then reads back what they did, so
+the "receipt" the UI shows is the database's own record and not a guess.
 
 Every function runs inside the caller's transaction. A raised SQL error rolls the
 whole call back, which is the ROLLBACK the receipt describes."""
@@ -177,6 +177,47 @@ def fail_milestone(conn: Connection, milestone_id: int, reviewer: str) -> Writte
     return out
 
 
+# ---------------------------------------------------------------- fn_terminate_commitment
+
+def terminate_commitment(conn: Connection, commitment_id: int, reason: str, reviewer: str) -> Written:
+    """End an active commitment: unreleased phases are terminated and refunded."""
+    if conn.execute("SELECT 1 FROM commitments WHERE id = %s", (commitment_id,)).fetchone() is None:
+        raise NotFound(f"commitment {commitment_id} not found")
+    refunded = _row(
+        conn,
+        "SELECT fn_terminate_commitment(%s::bigint, %s::text, %s::text) AS refunded",
+        (commitment_id, reason, reviewer),
+    )["refunded"]
+    cm = _row(
+        conn,
+        """SELECT c.amount, co.committed_budget, co.mandated_csr_budget,
+                  (SELECT count(*) FROM fund_phases fp
+                    WHERE fp.commitment_id = c.id AND fp.status = 'terminated') AS terminated
+             FROM commitments c JOIN companies co ON co.id = c.company_id
+            WHERE c.id = %s""",
+        (commitment_id,),
+    )
+
+    released = cm["amount"] - refunded
+    n = cm["terminated"]
+    out = Written(commitment_id=commitment_id)
+    text = f"Terminated {n} unreleased phase{'' if n == 1 else 's'}, {inr(refunded)}."
+    if released > 0:
+        text += f" The {inr(released)} already released stays paid."
+    out.add("fn_terminate_commitment", text)
+    out.add(
+        "fund_transactions",
+        f"Ledger rows appended: terminate for {'the phase' if n == 1 else f'each of the {n} phases'}, "
+        f"then refund {inr(refunded)}.",
+    )
+    out.add(
+        "fn_terminate_commitment",
+        f"Company budget used is now {inr(cm['committed_budget'])} of {inr(cm['mandated_csr_budget'])}. "
+        "Commitment cancelled, project terminated.",
+    )
+    return out
+
+
 # ---------------------------------------------------------------- monthly progress
 
 def report_impact(conn: Connection, project_id: int, value: float) -> Written:
@@ -184,13 +225,17 @@ def report_impact(conn: Connection, project_id: int, value: float) -> Written:
     if conn.execute("SELECT 1 FROM projects WHERE id = %s FOR UPDATE", (project_id,)).fetchone() is None:
         raise NotFound(f"project {project_id} not found")
     cm = conn.execute(
-        """SELECT company_id FROM commitments WHERE project_id = %s
-            ORDER BY (status = 'active') DESC, id LIMIT 1""",
+        """SELECT company_id, status::text AS status FROM commitments WHERE project_id = %s
+            ORDER BY (status = 'active') DESC, (status <> 'cancelled') DESC, id LIMIT 1""",
         (project_id,),
     ).fetchone()
     if cm is None:
         raise RuleError(
             f"Project {project_id} has no commitment, so there is no funded work to report on."
+        )
+    if cm["status"] == "cancelled":
+        raise RuleError(
+            f"Project {project_id} was terminated, so it has no funded work left to report on."
         )
 
     # The month after the latest report, or the current month for a first report.

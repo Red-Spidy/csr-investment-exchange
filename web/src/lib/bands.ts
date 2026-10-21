@@ -7,13 +7,17 @@ export const shortTitle = (title: string) => title.split(',')[0]
 /** "Meridian Industries Ltd" -> "Meridian" */
 export const shortCompany = (name: string) => name.split(' ')[0]
 
-/** One band per phase. A locked phase whose evidence is in shows as awaiting review. */
+/**
+ * One band per phase. A locked phase whose evidence is in shows as awaiting review; a
+ * terminated phase shows as refunded, since its money went back to the company.
+ */
 export function commitmentBands(v: CommitmentView): Band[] {
   return v.phases.map(p => {
     const ms = v.milestones.find(m => m.phaseNo === p.phaseNo)
     const tone: Tone =
       p.status === 'released' ? 'released'
       : p.status === 'held' ? 'held'
+      : p.status === 'terminated' ? 'returned'
       : ms?.verification === 'submitted' ? 'review'
       : 'locked'
     return {
@@ -27,7 +31,7 @@ export function commitmentBands(v: CommitmentView): Band[] {
 }
 
 export function sumByTone(bands: Band[]): Record<Tone, number> {
-  const out: Record<Tone, number> = { released: 0, locked: 0, review: 0, held: 0, free: 0 }
+  const out: Record<Tone, number> = { released: 0, locked: 0, review: 0, held: 0, free: 0, returned: 0 }
   for (const b of bands) out[b.tone] += b.amount
   return out
 }

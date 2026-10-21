@@ -49,6 +49,14 @@ export const VERIFICATION_LABEL: Record<Verification, string> = {
   failed: 'Failed verification',
 }
 
+export const TXN_TONE: Record<TxnType, 'indigo' | 'madder' | 'linen' | 'neem'> = {
+  lock: 'linen',
+  release: 'indigo',
+  hold: 'madder',
+  terminate: 'madder',
+  refund: 'neem',
+}
+
 export const TXN_LABEL: Record<TxnType, string> = {
   lock: 'Locked',
   release: 'Released',

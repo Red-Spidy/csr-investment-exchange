@@ -75,6 +75,7 @@ export function createHttpApi(base = '/api'): ExchangeApi {
     submitEvidence: (milestoneId, metric) => post(`/milestones/${milestoneId}/evidence`, { metric }),
     verifyMilestone: milestoneId => post(`/milestones/${milestoneId}/verify`),
     failMilestone: milestoneId => post(`/milestones/${milestoneId}/fail`),
+    terminateCommitment: (commitmentId, reason) => post(`/commitments/${commitmentId}/terminate`, { reason }),
     reportImpact: (projectId, value) => post(`/projects/${projectId}/impact-reports`, { value }),
     tryLedgerMutation: (op, ledgerId) => post(`/ledger/${ledgerId}/attempts`, { op }),
     runRace: guards => post('/safeguards/race', guards),

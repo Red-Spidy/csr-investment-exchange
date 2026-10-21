@@ -163,6 +163,122 @@ def test_unknown_milestone_is_404(client: TestClient):
     assert client.post("/api/milestones/999/evidence", json={"metric": 1}).status_code == 404
 
 
+# ---------------------------------------------------------------- fn_terminate_commitment
+
+def hold_phase_2(client: TestClient):
+    post(client, "/milestones/2/evidence", {"metric": 0.5})
+    assert post(client, "/milestones/2/fail")["ok"] is True
+
+
+def test_terminating_a_held_commitment_refunds_what_was_not_released(client: TestClient):
+    hold_phase_2(client)
+    res = post(client, "/commitments/1/terminate", {"reason": "Phase 2 failed verification"})
+    assert res["ok"] is True and res["commitmentId"] == 1
+    assert [e["by"] for e in res["effects"]] == [
+        "fn_terminate_commitment", "fund_transactions", "fn_terminate_commitment",
+    ]
+    assert res["effects"][0]["text"] == (
+        "Terminated 2 unreleased phases, ₹16,00,000. The ₹8,00,000 already released stays paid.")
+    assert res["effects"][1]["text"] == (
+        "Ledger rows appended: terminate for each of the 2 phases, then refund ₹16,00,000.")
+    assert res["effects"][2]["text"] == (
+        "Company budget used is now ₹8,00,000 of ₹90,00,000. Commitment cancelled, project terminated.")
+
+    (cm,) = get(client, "/commitments")
+    assert cm["commitment"]["status"] == "cancelled"
+    assert [p["status"] for p in cm["phases"]] == ["released", "terminated", "terminated"]
+    assert project_status(client, 1) == "terminated"
+    assert get(client, "/companies")[0]["committedBudget"] == 800_000
+
+    tail = get(client, "/ledger")[-3:]
+    assert [(t["type"], t["amount"]) for t in tail] == [
+        ("terminate", 800_000), ("terminate", 800_000), ("refund", 1_600_000)]
+    assert tail[0]["note"] == "phase 2 terminated: Phase 2 failed verification"
+    assert tail[2]["phaseId"] is None
+
+    audit = get(client, "/audit")[-1]
+    assert (audit["entity"], audit["entityId"], audit["action"]) == ("commitment", 1, "commitment_terminated")
+    assert audit["detail"] == {"reason": "Phase 2 failed verification", "by": "Reviewer",
+                               "released": 800_000, "refunded": 1_600_000}
+
+
+def test_the_refund_is_spendable_and_the_terminated_project_is_not_fundable(client: TestClient):
+    post(client, "/commitments/1/terminate", {"reason": "NGO withdrew"})     # nothing released was phase 1
+    assert get(client, "/companies")[0]["committedBudget"] == 800_000
+    assert commit(client, 1, 2)["ok"] is True                              # project 2 is approved
+    res = commit(client, 1, 1)
+    assert res["ok"] is False and res["error"] == "project 1 is terminated, only approved projects can be funded"
+
+
+def test_a_terminated_projects_leaderboard_funding_is_only_what_was_released(client: TestClient):
+    post(client, "/commitments/1/terminate", {"reason": "NGO withdrew"})
+    ngo1 = next(r for r in get(client, "/leaderboard") if r["ngoId"] == 1)
+    assert ngo1["totalFunded"] == 800_000
+    assert ngo1["impactPerMillion"] == pytest.approx(23.25 / 800_000 * 1e6, abs=1e-3)
+
+
+def test_a_commitment_can_only_be_terminated_once(client: TestClient):
+    post(client, "/commitments/1/terminate", {"reason": "first"})
+    res = post(client, "/commitments/1/terminate", {"reason": "second"})
+    assert res == {"ok": False, "kind": "sql", "code": "P0001",
+                   "error": "commitment 1 is cancelled, only active commitments can be terminated"}
+    assert len([a for a in get(client, "/audit") if a["action"] == "commitment_terminated"]) == 1
+
+
+def test_a_completed_commitment_cannot_be_terminated(client: TestClient):
+    for ms in (2, 3):
+        post(client, f"/milestones/{ms}/evidence", {"metric": 5})
+        post(client, f"/milestones/{ms}/verify")
+    res = post(client, "/commitments/1/terminate", {"reason": "too late"})
+    assert res["ok"] is False and res["error"].endswith("is completed, only active commitments can be terminated")
+
+
+def test_a_reason_is_required_and_an_unknown_commitment_is_404(client: TestClient):
+    for body in ({}, {"reason": ""}):
+        assert client.post("/api/commitments/1/terminate", json=body).status_code == 422
+    blank = post(client, "/commitments/1/terminate", {"reason": "   "})
+    assert blank == {"ok": False, "kind": "sql", "code": "P0001",
+                     "error": "a reason is required to terminate a commitment"}
+    assert get(client, "/commitments")[0]["commitment"]["status"] == "active"
+    assert client.post("/api/commitments/999/terminate", json={"reason": "x"}).status_code == 404
+
+
+def test_the_milestones_of_a_terminated_commitment_are_frozen(client: TestClient):
+    post(client, "/commitments/1/terminate", {"reason": "NGO withdrew"})
+    before = get(client, "/commitments")
+    res = post(client, "/milestones/2/evidence", {"metric": 5})
+    assert res == {"ok": False, "kind": "sql", "code": "P0001",
+                   "error": "commitment 1 is cancelled, its milestones can no longer change"}
+    assert get(client, "/commitments") == before
+    assert project_status(client, 1) == "terminated"
+
+
+def test_a_terminated_project_cannot_report_progress_but_still_shows_its_funding(client: TestClient):
+    post(client, "/commitments/1/terminate", {"reason": "NGO withdrew"})
+    res = post(client, "/projects/1/impact-reports", {"value": 3})
+    assert res == {"ok": False, "kind": "rule",
+                   "error": "Project 1 was terminated, so it has no funded work left to report on."}
+    detail = get(client, "/projects/1")
+    assert detail["commitment"]["commitment"]["status"] == "cancelled"
+    assert [p["status"] for p in detail["commitment"]["phases"]] == ["released", "terminated", "terminated"]
+
+
+def test_a_later_release_does_not_complete_a_commitment_while_a_phase_is_held(client: TestClient):
+    hold_phase_2(client)
+    post(client, "/milestones/3/evidence", {"metric": 5})
+    res = post(client, "/milestones/3/verify")
+    assert res["ok"] is True
+    assert not any("completed" in e["text"] for e in res["effects"])
+    (cm,) = get(client, "/commitments")
+    assert cm["commitment"]["status"] == "active"
+    assert [p["status"] for p in cm["phases"]] == ["released", "held", "released"]
+    assert project_status(client, 1) == "flagged"
+
+    res = post(client, "/commitments/1/terminate", {"reason": "Phase 2 failed verification"})
+    assert res["effects"][0]["text"] == (
+        "Terminated 1 unreleased phase, ₹8,00,000. The ₹16,00,000 already released stays paid.")
+
+
 # ---------------------------------------------------------------- monthly progress
 
 def test_reporting_progress_appends_the_next_month_and_the_windows_recompute(client: TestClient):

@@ -1,4 +1,4 @@
-// In-browser port of the database rules in db/migrations/004 and 005.
+// In-browser port of the database rules in db/migrations/004 to 007.
 // Every function takes a DbState and returns a new one (or throws), so a thrown
 // SqlError leaves the caller's state untouched, which is what ROLLBACK means.
 // Error messages are copied from the plpgsql so the UI can show the real text.
@@ -156,6 +156,14 @@ function setProjectStatus(p: Project, status: ProjectStatus) {
   p.status = status
 }
 
+/** The commitment a project's page shows: the active one, else a completed one, else a cancelled one. */
+export function latestCommitment(s: DbState, projectId: number): Commitment | undefined {
+  const rank = (c: Commitment) => (c.status === 'active' ? 0 : c.status !== 'cancelled' ? 1 : 2)
+  return s.commitments
+    .filter(c => c.projectId === projectId)
+    .sort((a, b) => rank(a) - rank(b) || a.id - b.id)[0]
+}
+
 function pushLedger(s: DbState, e: Omit<LedgerEntry, 'id' | 'createdAt'>, now: Date) {
   s.ledger.push({ ...e, id: nextId(s, 'ledger'), createdAt: now.toISOString() })
 }
@@ -169,6 +177,14 @@ function pushAudit(
 
 // ------------------------------------------------------------ milestones
 
+/** trg_guard_closed_commitment: a cancelled or completed commitment's milestones are history. */
+function guardClosedCommitment(s: DbState, ms: Milestone) {
+  const cm = s.commitments.find(c => c.id === ms.commitmentId)!
+  if (cm.status !== 'active') {
+    throw new SqlError(`commitment ${cm.id} is ${cm.status}, its milestones can no longer change`)
+  }
+}
+
 export function submitEvidence(
   prev: DbState, milestoneId: number, metric: number, now: Date,
 ): Outcome {
@@ -177,6 +193,7 @@ export function submitEvidence(
   if (ms.verification !== 'pending') {
     throw new RuleError(`Milestone ${ms.id} is already ${ms.verification}; evidence can only be submitted once.`)
   }
+  guardClosedCommitment(s, ms)
   ms.verification = 'submitted'
   ms.reportedAt = now.toISOString()
   ms.reportedMetric = metric
@@ -198,6 +215,7 @@ export function verifyMilestone(
   if (ms.verification !== 'submitted') {
     throw new RuleError(`Milestone ${ms.id} has no submitted evidence to verify.`)
   }
+  guardClosedCommitment(s, ms)
   ms.verification = 'verified'
   ms.verifiedBy = by
   ms.verifiedAt = now.toISOString()
@@ -223,13 +241,15 @@ function releaseNextPhase(s: DbState, ms: Milestone, now: Date, fx: Effect[]) {
   }, now)
   fx.push({ by: 'trg_release_next_phase', text: `Released phase ${phase.phaseNo}, ${inr(phase.amount)}. Ledger row appended.` })
 
-  const remaining = s.phases.filter(p => p.commitmentId === ms.commitmentId && p.status === 'locked').length
+  // A held phase is still owed, so it keeps the commitment open and the project flagged.
+  const phases = s.phases.filter(p => p.commitmentId === ms.commitmentId)
+  const outstanding = phases.filter(p => p.status === 'locked' || p.status === 'held').length
   const project = s.projects.find(p => p.id === ms.projectId)!
-  if (remaining === 0) {
+  if (outstanding === 0) {
     s.commitments.find(c => c.id === ms.commitmentId)!.status = 'completed'
     setProjectStatus(project, 'closed')
     fx.push({ by: 'trg_release_next_phase', text: 'No locked phases left. Commitment completed and project closed.' })
-  } else if (project.status !== 'active') {
+  } else if (project.status !== 'active' && !phases.some(p => p.status === 'held')) {
     setProjectStatus(project, 'active')
     fx.push({ by: 'trg_release_next_phase', text: 'First release made. Project is now active.' })
   }
@@ -244,6 +264,7 @@ export function failMilestone(
   if (ms.verification !== 'submitted') {
     throw new RuleError(`Milestone ${ms.id} has no submitted evidence to fail.`)
   }
+  guardClosedCommitment(s, ms)
   ms.verification = 'failed'
   ms.verifiedBy = by
   ms.verifiedAt = now.toISOString()
@@ -265,6 +286,70 @@ export function failMilestone(
   return { state: s, effects: fx, value: undefined }
 }
 
+// ------------------------------------------------------------ fn_terminate_commitment
+
+/**
+ * fn_terminate_commitment: end an active commitment. Released phases stay paid; every
+ * locked or held phase is terminated and its money goes back to the company budget.
+ */
+export function terminateCommitment(
+  prev: DbState, commitmentId: number, reason: string, by: string, now: Date,
+): Outcome<number> {
+  const s = clone(prev)
+  if (!reason.trim()) throw new SqlError('a reason is required to terminate a commitment')
+  const cm = mustFind(s.commitments, c => c.id === commitmentId, `commitment ${commitmentId} not found`)
+  if (cm.status !== 'active') {
+    throw new SqlError(`commitment ${cm.id} is ${cm.status}, only active commitments can be terminated`)
+  }
+
+  let refunded = 0
+  const ended = s.phases
+    .filter(p => p.commitmentId === cm.id && (p.status === 'locked' || p.status === 'held'))
+    .sort((a, b) => a.phaseNo - b.phaseNo)
+  for (const phase of ended) {
+    phase.status = 'terminated'
+    pushLedger(s, {
+      commitmentId: cm.id, phaseId: phase.id, amount: phase.amount, type: 'terminate',
+      note: `phase ${phase.phaseNo} terminated: ${reason.trim()}`,
+    }, now)
+    refunded = round2(refunded + phase.amount)
+  }
+
+  const co = s.companies.find(c => c.id === cm.companyId)!
+  if (refunded > 0) {
+    pushLedger(s, {
+      commitmentId: cm.id, phaseId: null, amount: refunded, type: 'refund',
+      note: 'unreleased money returned to the company budget',
+    }, now)
+    co.committedBudget = round2(co.committedBudget - refunded)
+  }
+  cm.status = 'cancelled'
+  setProjectStatus(s.projects.find(p => p.id === cm.projectId)!, 'terminated')
+  const released = round2(cm.amount - refunded)
+  pushAudit(s, 'commitment', cm.id, 'commitment_terminated',
+    { reason: reason.trim(), by, released, refunded }, now)
+
+  const n = ended.length
+  return {
+    state: s, value: cm.id,
+    effects: [
+      {
+        by: 'fn_terminate_commitment',
+        text: `Terminated ${n} unreleased phase${n === 1 ? '' : 's'}, ${inr(refunded)}.`
+          + (released > 0 ? ` The ${inr(released)} already released stays paid.` : ''),
+      },
+      {
+        by: 'fund_transactions',
+        text: `Ledger rows appended: terminate for ${n === 1 ? 'the phase' : `each of the ${n} phases`}, then refund ${inr(refunded)}.`,
+      },
+      {
+        by: 'fn_terminate_commitment',
+        text: `Company budget used is now ${inr(co.committedBudget)} of ${inr(co.mandatedBudget)}. Commitment cancelled, project terminated.`,
+      },
+    ],
+  }
+}
+
 // ------------------------------------------------------------ monthly progress
 
 function nextMonth(iso: string): string {
@@ -278,8 +363,11 @@ function nextMonth(iso: string): string {
  */
 export function reportImpact(prev: DbState, projectId: number, value: number, now: Date): Outcome {
   const s = clone(prev)
-  const cm = s.commitments.find(c => c.projectId === projectId)
+  const cm = latestCommitment(s, projectId)
   if (!cm) throw new RuleError(`Project ${projectId} has no commitment, so there is no funded work to report on.`)
+  if (cm.status === 'cancelled') {
+    throw new RuleError(`Project ${projectId} was terminated, so it has no funded work left to report on.`)
+  }
   const months = s.impactReports.filter(r => r.projectId === projectId).map(r => r.periodMonth).sort()
   const month = months.length ? nextMonth(months[months.length - 1]) : `${toIsoDate(now).slice(0, 7)}-01`
   s.impactReports.push({ id: nextId(s, 'impactReports'), projectId, periodMonth: month, metricValue: value })
@@ -459,7 +547,6 @@ export function projectScorecard(s: DbState): ScorecardRow[] {
     const fs = s.fraudScores.find(x => x.projectId === p.id)
     const rg = s.riskGrades.find(x => x.projectId === p.id)
     const cm = s.commitments.find(c => c.projectId === p.id && c.status === 'active')
-      ?? s.commitments.find(c => c.projectId === p.id)
     const phases = cm ? s.phases.filter(f => f.commitmentId === cm.id) : []
     const sum = (st: string) => phases.filter(f => f.status === st).reduce((t, f) => t + f.amount, 0)
     return {
@@ -549,6 +636,12 @@ export interface LeaderRow {
   overallPercentile: number
 }
 
+/** Money that reached the NGO: a cancelled commitment counts only its released phases (007). */
+function fundedBy(s: DbState, c: Commitment): number {
+  if (c.status !== 'cancelled') return c.amount
+  return s.phases.filter(p => p.commitmentId === c.id && p.status === 'released').reduce((t, p) => t + p.amount, 0)
+}
+
 /**
  * ngo_leaderboard. Funding and impact are summed per project first, as the view does
  * since migration 006. Before it, the view joined commitments and impact_reports in
@@ -558,7 +651,7 @@ export function ngoLeaderboard(s: DbState): LeaderRow[] {
   const base = s.ngos.map(n => {
     const projects = s.projects.filter(p => p.ngoId === n.id)
     const funded = projects.reduce(
-      (t, p) => t + s.commitments.filter(c => c.projectId === p.id).reduce((a, c) => a + c.amount, 0), 0)
+      (t, p) => t + s.commitments.filter(c => c.projectId === p.id).reduce((a, c) => a + fundedBy(s, c), 0), 0)
     const impact = projects.reduce(
       (t, p) => t + s.impactReports.filter(r => r.projectId === p.id).reduce((a, r) => a + r.metricValue, 0), 0)
     return { n, projectCount: projects.length, funded, impact, ratio: funded > 0 ? impact / funded : 0 }

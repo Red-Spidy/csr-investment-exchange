@@ -28,7 +28,8 @@
     repeating-linear-gradient(-45deg, rgba(0, 0, 0, 0.2) 0 2px, transparent 2px 7px),
     var(--madder);
 }
-.weave[data-tone='free'] {
+.weave[data-tone='free'],
+.weave[data-tone='returned'] {
   color: var(--ink-2);
   background: repeating-linear-gradient(90deg, rgba(27, 35, 88, 0.16) 0 1px, transparent 1px 8px);
   outline: 1.5px dashed rgba(27, 35, 88, 0.38);

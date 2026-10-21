@@ -1,9 +1,9 @@
 import type { ActionResult, CommitmentView, ExchangeApi, ProjectDetail } from './api'
 import { createDemoState } from './demo'
 import {
-  RuleError, SqlError, commitFunds, esgTimeline, failMilestone, matchReport, ngoLeaderboard,
-  projectScorecard, reportImpact, runRace, submitEvidence, tryLedgerMutation, verifyMilestone,
-  type Outcome,
+  RuleError, SqlError, commitFunds, esgTimeline, failMilestone, latestCommitment, matchReport,
+  ngoLeaderboard, projectScorecard, reportImpact, runRace, submitEvidence, terminateCommitment,
+  tryLedgerMutation, verifyMilestone, type Outcome,
 } from './engine'
 import type { DbState } from './types'
 
@@ -44,7 +44,7 @@ export function createDemoApi(): ExchangeApi {
 
     projectDetail: async (projectId): Promise<ProjectDetail> => {
       const project = db.projects.find(p => p.id === projectId)!
-      const cm = db.commitments.find(c => c.projectId === projectId && c.status !== 'cancelled')
+      const cm = latestCommitment(db, projectId)
       return {
         project,
         ngo: db.ngos.find(n => n.id === project.ngoId)!,
@@ -68,6 +68,8 @@ export function createDemoApi(): ExchangeApi {
     submitEvidence: async (id, metric) => write(() => submitEvidence(db, id, metric, new Date())),
     verifyMilestone: async id => write(() => verifyMilestone(db, id, REVIEWER, new Date())),
     failMilestone: async id => write(() => failMilestone(db, id, REVIEWER, new Date())),
+    terminateCommitment: async (id, reason) =>
+      write(() => terminateCommitment(db, id, reason, REVIEWER, new Date())),
 
     reportImpact: async (projectId, value) => write(() => reportImpact(db, projectId, value, new Date())),
 

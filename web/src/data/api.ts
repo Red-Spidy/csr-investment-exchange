@@ -60,6 +60,8 @@ export interface ExchangeApi {
   /** UPDATE milestones SET verification_status = 'verified' */
   verifyMilestone(milestoneId: number): Promise<ActionResult>
   failMilestone(milestoneId: number): Promise<ActionResult>
+  /** function fn_terminate_commitment: end a commitment and refund what was not released. */
+  terminateCommitment(commitmentId: number, reason: string): Promise<ActionResult>
   /** INSERT INTO impact_reports, the input to the window-function views. */
   reportImpact(projectId: number, value: number): Promise<ActionResult>
   /** Attempt to rewrite history in fund_transactions. */

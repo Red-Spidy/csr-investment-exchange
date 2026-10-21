@@ -42,6 +42,10 @@ class EvidenceBody(BaseModel):
     metric: float = Field(allow_inf_nan=False)
 
 
+class TerminateBody(BaseModel):
+    reason: Annotated[str, Field(min_length=1, max_length=500)]
+
+
 class ImpactBody(BaseModel):
     value: float = Field(allow_inf_nan=False)
 
@@ -193,6 +197,10 @@ def create_app(
     @api.post("/milestones/{milestone_id}/fail")
     def fail(milestone_id: PositiveId, pool: Pool):
         return write(pool, lambda c: writes.fail_milestone(c, milestone_id, reviewer))
+
+    @api.post("/commitments/{commitment_id}/terminate")
+    def terminate(commitment_id: PositiveId, body: TerminateBody, pool: Pool):
+        return write(pool, lambda c: writes.terminate_commitment(c, commitment_id, body.reason, reviewer))
 
     @api.post("/projects/{project_id}/impact-reports")
     def report_impact(project_id: PositiveId, body: ImpactBody, pool: Pool):

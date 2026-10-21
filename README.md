@@ -44,6 +44,7 @@ Each claim in the deck maps to code and to a test that proves it:
 | Triggers release funds on milestone verification | `fn_release_next_phase()` | `01_triggers.sql` |
 | Transactions make double-funding impossible | `fn_commit_funds()` | `02_double_funding.sql`, `06_concurrency.sh` |
 | Failed verification holds funds | `fn_hold_on_failed_verification()` | `01_triggers.sql` |
+| Held money can be refunded, and the books still balance | `fn_terminate_commitment()` | `08_terminate.sql`, `09_terminate_race.sh` |
 
 **Anti-double-funding is three independent layers**, each tested separately
 because the outer one short-circuits the others in normal operation:
@@ -58,6 +59,15 @@ wins. **This is the test worth running live in front of the panel.**
 The ledger (`fund_transactions`) is append-only, enforced by trigger. It blocks
 cascade deletes too: you cannot erase funding history by deleting the company
 that owns it.
+
+**Held money has one way out.** A failed milestone holds its phase and nothing pays it
+automatically. `fn_terminate_commitment` ends the commitment: released phases stay paid,
+every locked or held phase is terminated and its money goes back to the company's budget,
+and the ledger records each step, so what was locked always equals what was released plus
+what was terminated. The project becomes `terminated` and cannot be funded again, and
+`trg_guard_closed_commitment` freezes the milestones of any closed commitment. A held phase
+also keeps its commitment open: before migration 007, paying a later phase completed the
+commitment and stranded the held money for good.
 
 **No model is in the fund-release path.** Models produce evidence; a human sets
 a verification flag; a SQL trigger moves money.
@@ -75,7 +85,8 @@ the database did, or the exact error it raised.
 | `GET /api/scorecard`, `/esg-timeline`, `/leaderboard` | the views `project_scorecard`, `company_esg_timeline`, `ngo_leaderboard` |
 | `POST /api/commitments` | `fn_commit_funds` |
 | `POST /api/milestones/{id}/evidence`, `/verify`, `/fail` | `UPDATE milestones`, which fires `trg_release_next_phase` or `trg_hold_on_failed_verification`. The API refuses to verify a milestone with no submitted evidence. |
-| `POST /api/projects/{id}/impact-reports` | `INSERT INTO impact_reports` |
+| `POST /api/commitments/{id}/terminate` | `fn_terminate_commitment`. Body `{"reason": "..."}`; the reason and the reviewer (`CSR_REVIEWER`) go into the ledger and the audit log. |
+| `POST /api/projects/{id}/impact-reports` | `INSERT INTO impact_reports`. Refused for a terminated project. |
 | `POST /api/ledger/{id}/attempts` | an `UPDATE` or `DELETE` on `fund_transactions`, always rolled back |
 | `POST /api/safeguards/race` | two real sessions racing for one project, in a throwaway schema built from migrations 002 and 004 |
 | `POST /api/reset` | rebuilds from `db/migrations` and `db/seed.sql`. Off unless `CSR_ALLOW_RESET=1` (`make api` sets it). |
@@ -90,20 +101,26 @@ money, so run it on localhost or behind something that authenticates.
 Tests: `make test-api` (creates and drops its own databases on the compose server, never
 touching `csr_exchange`), and `cd web && npm test`. To check that the browser demo has not
 drifted from the database, run `make api` against a freshly seeded database and then
-`VITE_PARITY_API_URL=http://127.0.0.1:8000 npm test` in `web/`.
+`VITE_PARITY_API_URL=http://127.0.0.1:8000 npm test` in `web/`. Adding `VITE_PARITY_WRITES=1`
+also replays a fail-then-terminate scenario on both sides and compares the receipts and the
+resulting state; it resets the database before and after, so only use it on a demo database.
 
 **Upgrading an existing database.** `006_fix_leaderboard_fanout.sql` fixes `ngo_leaderboard`,
 which counted each commitment once per monthly report (the seeded 2,400,000 showed as
-14,400,000). `make demo` rebuilds everything, or apply just that file:
-`docker exec -i csr_db psql -U csr -d csr_exchange -f - < db/migrations/006_fix_leaderboard_fanout.sql`.
+14,400,000). `007_terminate_commitment.sql` adds termination and refunds, and changes
+`ngo_leaderboard` to count only released money for a terminated commitment. `make demo`
+rebuilds everything, or apply the files you are missing, in order:
+`docker exec -i csr_db psql -U csr -d csr_exchange -f - < db/migrations/006_fix_leaderboard_fanout.sql`
+(and the same for `007_terminate_commitment.sql`). 007 creates a function and a trigger, so
+applying it twice fails; apply it once.
 
 ## Status
 
 Built and verified:
 
 - Full schema, triggers, transactions, window views, pgvector matching
-- 11/11 DB assertions pass from a clean `reset`
-- Two-session concurrency test passes
+- 17/17 DB checks pass from a clean `reset`
+- Both two-session concurrency tests pass (double funding, and termination against verification)
 - FastAPI layer (`api/`) with tests against real Postgres, including a real two-session race
 - React frontend (`web/`): six screens, on the API or on an in-browser demo store. `npm test` pins
   the demo's ported matching, window-view and trigger logic to numbers read from this database.

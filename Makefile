@@ -26,6 +26,7 @@ seed:
 test-db:
 	@for f in db/tests/*.sql; do echo "== $$f"; $(PSQL) -f - < $$f; done
 	@echo "== db/tests/06_concurrency.sh"; bash db/tests/06_concurrency.sh
+	@echo "== db/tests/09_terminate_race.sh"; bash db/tests/09_terminate_race.sh
 
 test-ml:
 	.venv/bin/python -m pytest -q

@@ -51,6 +51,7 @@ describe('createHttpApi', () => {
     await api.submitEvidence(2, 4.2)
     await api.verifyMilestone(2)
     await api.failMilestone(3)
+    await api.terminateCommitment(1, 'Phase 2 failed verification')
     await api.reportImpact(1, 8.2)
     await api.tryLedgerMutation('DELETE', 1)
     const calls = f.mock.calls.map(c => {
@@ -61,6 +62,7 @@ describe('createHttpApi', () => {
       ['/api/milestones/2/evidence', { metric: 4.2 }],
       ['/api/milestones/2/verify', {}],
       ['/api/milestones/3/fail', {}],
+      ['/api/commitments/1/terminate', { reason: 'Phase 2 failed verification' }],
       ['/api/projects/1/impact-reports', { value: 8.2 }],
       ['/api/ledger/1/attempts', { op: 'DELETE' }],
     ])

@@ -4,10 +4,10 @@ import { Cloth, ClothLegend } from '../components/Cloth'
 import { PageHead, Pill, Section, TableScroll, Loading } from '../components/ui'
 import type { CommitmentView } from '../data/api'
 import { useExchange, useQuery } from '../data/store'
-import type { FundPhase, Milestone } from '../data/types'
-import { commitmentBands, shortCompany, sumByTone } from '../lib/bands'
+import type { CommitmentStatus, FundPhase, Milestone } from '../data/types'
+import { commitmentBands, shortCompany, shortTitle, sumByTone } from '../lib/bands'
 import { dateShort, inr, inrCompact, timeShort } from '../lib/format'
-import { TXN_LABEL } from '../lib/labels'
+import { TXN_LABEL, TXN_TONE } from '../lib/labels'
 
 export function Funds() {
   const { companyId } = useExchange()
@@ -61,7 +61,7 @@ export function Funds() {
                 <tr key={l.id}>
                   <td className="num faint">{l.id}</td>
                   <td className="nowrap">{dateShort(l.createdAt)}, {timeShort(l.createdAt)}</td>
-                  <td><Pill tone={l.type === 'release' ? 'indigo' : l.type === 'hold' ? 'madder' : 'linen'}>{TXN_LABEL[l.type]}</Pill></td>
+                  <td><Pill tone={TXN_TONE[l.type]}>{TXN_LABEL[l.type]}</Pill></td>
                   <td>{l.note}</td>
                   <td className="r num"><strong>{inr(l.amount)}</strong></td>
                 </tr>
@@ -98,22 +98,32 @@ export function Funds() {
 
 // ---------------------------------------------------------------- one commitment
 
+const COMMITMENT_PILL: Record<CommitmentStatus, { tone: 'neem' | 'indigo' | 'madder'; label: string }> = {
+  active: { tone: 'indigo', label: 'In progress' },
+  completed: { tone: 'neem', label: 'Completed' },
+  cancelled: { tone: 'madder', label: 'Terminated' },
+}
+
 function CommitmentBlock({ v }: { v: CommitmentView }) {
   const bands = commitmentBands(v)
   const totals = sumByTone(bands)
-  const legend = (['released', 'review', 'locked', 'held'] as const)
+  const legend = (['released', 'review', 'locked', 'held', 'returned'] as const)
     .filter(t => totals[t] > 0).map(t => ({ tone: t, value: inrCompact(totals[t]) }))
+  const { status } = v.commitment
 
   return (
     <section className="commit" aria-labelledby={`c${v.commitment.id}`}>
       <header className="commit__head">
         <div>
           <h2 id={`c${v.commitment.id}`}><Link to={`/projects/${v.project.id}`}>{v.project.title}</Link></h2>
-          <p className="muted">{v.ngoName}. {inr(v.commitment.amount)} locked by {v.companyName}.</p>
+          <p className="muted">
+            {v.ngoName}.{' '}
+            {status === 'cancelled'
+              ? `${v.companyName} terminated this commitment: ${inr(totals.released)} was paid and ${inr(totals.returned)} went back to its budget.`
+              : `${inr(v.commitment.amount)} locked by ${v.companyName}.`}
+          </p>
         </div>
-        <Pill tone={v.commitment.status === 'completed' ? 'neem' : 'indigo'}>
-          {v.commitment.status === 'completed' ? 'Completed' : 'In progress'}
-        </Pill>
+        <Pill tone={COMMITMENT_PILL[status].tone}>{COMMITMENT_PILL[status].label}</Pill>
       </header>
 
       <Cloth bands={bands} height={64} label={`${v.project.title}: ${legend.map(l => `${l.tone} ${l.value}`).join(', ')}`} />
@@ -124,22 +134,94 @@ function CommitmentBlock({ v }: { v: CommitmentView }) {
           const ms = v.milestones.find(m => m.phaseNo === p.phaseNo)!
           const before = v.phases.filter(x => x.phaseNo < p.phaseNo)
           const blocked = before.some(x => x.status !== 'released')
-          return <PhaseCard key={p.id} phase={p} ms={ms} blockedBy={blocked ? before.find(x => x.status !== 'released')!.phaseNo : null}
+          return <PhaseCard key={p.id} phase={p} ms={ms} blockedBy={blocked ? before.find(x => x.status !== 'released')! : null}
             prevMetric={v.milestones.find(m => m.phaseNo === p.phaseNo - 1)?.reportedMetric ?? null} />
         })}
       </ol>
+
+      {status === 'active' && (
+        // Keyed on the held phase so a fresh failure brings its own prefilled reason.
+        <EndCommitment key={v.phases.find(p => p.status === 'held')?.id ?? 0} v={v}
+          unreleased={totals.locked + totals.review + totals.held} />
+      )}
     </section>
   )
 }
 
+/**
+ * fn_terminate_commitment. Open by default when a phase is held, because ending the
+ * commitment is then the only way the held money can move; tucked away otherwise.
+ */
+function EndCommitment({ v, unreleased }: { v: CommitmentView; unreleased: number }) {
+  const { act } = useExchange()
+  const held = v.phases.find(p => p.status === 'held')
+  const [reason, setReason] = useState(held ? `Phase ${held.phaseNo} failed verification.` : '')
+  const [confirming, setConfirming] = useState(false)
+  const company = shortCompany(v.companyName)
+  const id = `end${v.commitment.id}`
+
+  const form = (
+    <form className="end" onSubmit={e => { e.preventDefault(); if (reason.trim()) setConfirming(true) }}>
+      <p className="small">
+        Terminating ends the commitment for good. The {inrCompact(unreleased)} not yet released goes back to
+        {' '}{company}'s budget, and what was already paid stays paid.
+      </p>
+      <div className="field">
+        <label htmlFor={id}>Reason, written to the ledger and the audit log</label>
+        <input id={id} className="input" value={reason} maxLength={500} required
+          onChange={e => { setReason(e.target.value); setConfirming(false) }} />
+      </div>
+      {confirming ? (
+        <div className="confirm confirm--danger" role="group" aria-label={`Confirm terminating ${shortTitle(v.project.title)}`}>
+          <p>
+            Return <strong>{inr(unreleased)}</strong> to {company} and close {shortTitle(v.project.title)}?
+            The project cannot be funded again, and this cannot be undone.
+          </p>
+          <div className="confirm__actions">
+            <button type="button" className="btn btn--danger"
+              onClick={() => act('Terminate and refund', api => api.terminateCommitment(v.commitment.id, reason))}>
+              Terminate and refund
+            </button>
+            <button type="button" className="btn btn--quiet" autoFocus onClick={() => setConfirming(false)}>Keep it</button>
+          </div>
+        </div>
+      ) : (
+        <button className="btn btn--small btn--danger" type="submit">Terminate and refund {inrCompact(unreleased)}</button>
+      )}
+    </form>
+  )
+
+  if (held) {
+    return (
+      <div className="end-box" role="group" aria-labelledby={`${id}h`}>
+        <h3 id={`${id}h`}>Phase {held.phaseNo} failed verification</h3>
+        <p className="small muted">
+          Its {inrCompact(held.amount)} is held and will not be paid, and the phases after it cannot open. A failed
+          verification cannot be undone, so this money moves only if the commitment is terminated.
+        </p>
+        {form}
+      </div>
+    )
+  }
+  return (
+    <details className="sql-disclosure end-early">
+      <summary>End this commitment early</summary>
+      {form}
+    </details>
+  )
+}
+
 function PhaseCard({ phase, ms, blockedBy, prevMetric }: {
-  phase: FundPhase; ms: Milestone; blockedBy: number | null; prevMetric: number | null
+  phase: FundPhase; ms: Milestone; blockedBy: FundPhase | null; prevMetric: number | null
 }) {
   const { act } = useExchange()
   const [metric, setMetric] = useState(String(prevMetric ?? 3))
   const label = `Phase ${phase.phaseNo}`
 
-  const tone = phase.status === 'released' ? 'released' : phase.status === 'held' ? 'held' : ms.verification === 'submitted' ? 'review' : 'locked'
+  const tone = phase.status === 'released' ? 'released'
+    : phase.status === 'held' ? 'held'
+    : phase.status === 'terminated' ? 'returned'
+    : ms.verification === 'submitted' ? 'review' : 'locked'
 
   return (
     <li className="phase weave-edge" data-tone={tone}>
@@ -163,8 +245,17 @@ function PhaseCard({ phase, ms, blockedBy, prevMetric }: {
         <div className="phase__state">
           <Pill tone="madder">Held</Pill>
           <p className="small">
-            Verification failed. The {inrCompact(phase.amount)} stays locked and is not paid. The schema has no
-            automatic way back, so a person has to decide what happens next.
+            Verification failed. The {inrCompact(phase.amount)} stays locked and is not paid unless the commitment
+            is terminated, which returns it to the company.
+          </p>
+        </div>
+      )}
+
+      {phase.status === 'terminated' && (
+        <div className="phase__state">
+          <Pill tone="linen">Refunded</Pill>
+          <p className="small">
+            Never paid. The commitment was terminated and the {inrCompact(phase.amount)} went back to the company's budget.
           </p>
         </div>
       )}
@@ -189,7 +280,11 @@ function PhaseCard({ phase, ms, blockedBy, prevMetric }: {
         blockedBy ? (
           <div className="phase__state">
             <Pill tone="linen">Locked</Pill>
-            <p className="small">Opens after phase {blockedBy} is verified.</p>
+            <p className="small">
+              {blockedBy.status === 'held'
+                ? `Cannot open while phase ${blockedBy.phaseNo} is held.`
+                : `Opens after phase ${blockedBy.phaseNo} is verified.`}
+            </p>
           </div>
         ) : (
           <form className="phase__state" onSubmit={e => {
