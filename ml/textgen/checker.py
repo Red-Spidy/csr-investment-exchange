@@ -23,6 +23,9 @@ _NUMBER = re.compile(
     re.IGNORECASE,
 )
 _SDG = re.compile(r"\bsdgs?\b|sustainable development goal", re.IGNORECASE)
+# Citations of the CSR law itself. Real proposals make them, and their numbers
+# are neither facts about the project nor inventions.
+_LAW = re.compile(r"\bsection\s+135\b|\bcompanies\s+act,?\s+2013\b", re.IGNORECASE)
 SMALL_INTEGERS = {1, 2, 3, 4, 5}   # list numbering, "phase 2": not facts
 
 
@@ -76,7 +79,8 @@ def check(spec: ProposalSpec, text: str | None) -> CheckResult:
     if not text or not text.strip():
         return CheckResult(False, ["empty"])
     lowered = text.lower()
-    numbers = find_numbers(text)
+    citations = [m.span() for m in _LAW.finditer(text)]
+    numbers = [n for n in find_numbers(text) if not any(a <= n.start < b for a, b in citations)]
     reasons: list[str] = []
     spans: dict[str, tuple[int, int]] = {}
 

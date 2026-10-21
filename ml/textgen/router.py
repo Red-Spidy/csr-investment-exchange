@@ -174,14 +174,15 @@ def parse_batch(text: str) -> dict[int, str]:
 def discover_model(client: httpx.Client, base_url: str, api_key: str,
                    prefer: tuple[str, ...], avoid: tuple[str, ...]) -> str:
     """Pick a chat model from the provider's own list, so a renamed model does
-    not break the run. Stable releases beat previews; newer versions win."""
+    not break the run. Numbered stable releases beat previews and moving
+    "-latest" aliases (which the provider can repoint); newer versions win."""
     response = client.get(base_url + "models", headers={"Authorization": f"Bearer {api_key}"})
     response.raise_for_status()
     ids = [m["id"].removeprefix("models/") for m in response.json().get("data", [])]
     ids = [i for i in ids if not any(a in i for a in avoid)]
     for wanted in prefer:
         matches = [i for i in ids if wanted in i]
-        stable = [i for i in matches if "preview" not in i and "exp" not in i]
+        stable = [i for i in matches if not any(tag in i for tag in ("preview", "exp", "latest"))]
         if stable or matches:
             return max(stable or matches)
     raise RuntimeError(f"no model matching {prefer} at {base_url}; set the model in .env")

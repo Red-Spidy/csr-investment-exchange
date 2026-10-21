@@ -106,6 +106,8 @@ def test_rejected_proposals_are_retried_then_given_up(specs, tmp_path):
     assert router.prompted_ids.count(bad_id) == 3
     assert stats["accepted"] == 3 and stats["gave_up"] == 1
     assert bad_id not in {r["project_id"] for r in _saved(out)}
+    # Full reasons, not just categories, so a pilot shows WHICH fact failed.
+    assert any(reason.startswith("missing:") for reason in stats["top_rejections"])
 
 
 def test_resumes_without_redoing_saved_proposals(specs, tmp_path):
@@ -137,7 +139,53 @@ def test_goal_says_raise_or_reduce_by_metric_direction_even_without_a_baseline(s
     from dataclasses import replace
     rising = next(s for s in specs if s.metric_unit == "percentage_points")
     no_base = replace(rising, baseline=None, omitted={"baseline": rising.baseline or 50.0})
-    assert f"Goal: raise {rising.metric_label} to" in batch_prompt([no_base])
+    assert re.search(r": raise [a-z' -]+ to \d", batch_prompt([no_base]))
     falling = replace(rising, metric_label="waterborne disease incidence", metric_unit="percent",
                       metric_direction="decrease", baseline=None, target=12.0, omitted={"baseline": 18.0})
-    assert "Goal: reduce waterborne disease incidence to 12%" in batch_prompt([falling])
+    assert re.search(r": reduce [a-z' -]+ to 12%", batch_prompt([falling]))
+
+
+def test_every_activity_description_passes_the_checkers_keyword_rule():
+    # If the LLM copies a description, the checker must still accept it.
+    from synth.catalog import ACTIVITY_DESCRIPTIONS, SECTOR_PROFILE
+    from textgen.checker import _activity_described
+    activities = {a for p in SECTOR_PROFILE.values() for a in p.activities}
+    assert set(ACTIVITY_DESCRIPTIONS) == activities
+    for activity, descriptions in ACTIVITY_DESCRIPTIONS.items():
+        assert len(descriptions) >= 2, activity
+        for d in descriptions:
+            assert _activity_described(activity, d.lower()), (activity, d)
+
+
+def test_fact_sheets_vary_in_order_and_wording_but_are_stable_per_project(specs):
+    def middle(spec):
+        lines = batch_prompt([spec]).split("\n\n")[1].splitlines()
+        assert lines[0].startswith("Proposal id:")
+        assert lines[-2].startswith("Do not state:") and lines[-1].startswith("Style:")
+        return tuple(line.split(":")[0] for line in lines[1:-2])
+    orders = {middle(s) for s in specs[:30]}
+    assert len(orders) >= 10
+    assert batch_prompt([specs[0]]) == batch_prompt([specs[0]])
+
+
+def test_fact_sheet_does_not_hand_over_catalogue_activity_names(specs):
+    copied = sum(a in batch_prompt([s]) for s in specs for a in s.activities)
+    total = sum(len(s.activities) for s in specs)
+    assert copied / total < 0.3
+
+
+def test_every_metric_and_budget_item_has_alternative_phrasings():
+    # A missing entry would crash the run partway through 2,000 proposals.
+    from synth.catalog import ADMIN_BUDGET_ITEM, BUDGET_ITEM_PHRASES, METRIC_PHRASES, SECTOR_PROFILE
+    labels = {m.name.replace("_", " ") for p in SECTOR_PROFILE.values() for m in p.metrics}
+    items = {i for p in SECTOR_PROFILE.values() for i in p.budget_items} | {ADMIN_BUDGET_ITEM}
+    assert labels <= set(METRIC_PHRASES) and items <= set(BUDGET_ITEM_PHRASES)
+    assert all(len(v) >= 2 for v in [*METRIC_PHRASES.values(), *BUDGET_ITEM_PHRASES.values()])
+
+
+def test_catalogue_budget_and_metric_names_are_not_handed_over_every_time(specs):
+    from synth.catalog import ADMIN_BUDGET_ITEM
+    with_breakdown = [s for s in specs if s.budget_lines]
+    admin = sum(ADMIN_BUDGET_ITEM in batch_prompt([s]) for s in with_breakdown) / len(with_breakdown)
+    metric = sum(s.metric_label in batch_prompt([s]) for s in specs) / len(specs)
+    assert admin < 0.5 and metric < 0.6

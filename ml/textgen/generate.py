@@ -24,13 +24,13 @@ import numpy as np
 import pandas as pd
 
 from synth.build import load_world
-from synth.catalog import SECTOR_PROFILE
+from synth.catalog import ACTIVITY_DESCRIPTIONS, BUDGET_ITEM_PHRASES, METRIC_PHRASES, SECTOR_PROFILE
 from textgen.checker import check
 from textgen.router import (REQUEST_TIMEOUT, AllProvidersUnavailable, Router, parse_batch,
                             providers_from_env)
 from textgen.spec import ProposalSpec
 
-PROMPT_VERSION = "p1"
+PROMPT_VERSION = "p3"
 DATASETS = Path("ml/datasets")
 OUT = DATASETS / "proposals.jsonl"
 BATCH_SIZE = 10
@@ -58,7 +58,9 @@ For each set of facts you are given, write the proposal that NGO would submit.
 Rules:
 1. Use every fact given, with exactly the numbers given. Write every number in digits.
 2. Do not add any other number: no other counts, percentages, amounts, dates or years.
-3. Describe every listed activity, in your own words.
+3. Describe every activity in your own words. The fact sheet's labels, wording
+   and order are arbitrary: do not copy them. Organise the proposal the way a
+   real NGO would, not in the order of the facts.
 4. Never mention anything listed under "Do not state".
 5. Do not mention the Sustainable Development Goals or SDG numbers.
 6. Follow the requested style and length. Vary vocabulary and structure between
@@ -140,8 +142,8 @@ def _in_words(n: int) -> str:
     return f"{n / 10_000_000:g} crore" if n >= 10_000_000 else f"{n / 100_000:g} lakh"
 
 
-def _goal(spec: ProposalSpec) -> str:
-    label, t, b = spec.metric_label, spec.target, spec.baseline
+def _goal(spec: ProposalSpec, label: str) -> str:
+    t, b = spec.target, spec.baseline
     if spec.metric_unit == "hectares":
         return f"add {t:g} hectares of {label}"
     if spec.metric_unit == "tonnes_per_month":
@@ -152,32 +154,61 @@ def _goal(spec: ProposalSpec) -> str:
     return f"{verb} {label} from {b:g}% to {t:g}%" if b is not None else f"{verb} {label} to {t:g}%"
 
 
+# Fact-sheet labels vary per project, and the facts are shuffled: the LLM
+# mirrors whatever wording and order it is given, and a corpus that always
+# says "Total budget" teaches BERT a template instead of reading.
+_LABELS = {
+    "ngo": ("NGO", "Organisation", "Applicant"),
+    "founded": ("founded {y}", "registered in {y}", "working since {y}", "set up in {y}"),
+    "location": ("Location", "Project area", "Where"),
+    "activities": ("Activities", "Planned work", "What will be done"),
+    "who": ("Who benefits", "Target group", "Participants"),
+    "goal": ("Goal", "Expected change", "Target outcome"),
+    "duration": ("Duration", "Project period", "Timeline"),
+    "budget": ("Total budget", "Funding requested", "Grant sought", "Project cost"),
+    "breakdown": ("Budget breakdown", "Cost heads", "Spending plan"),
+}
+
+
 def _facts(spec: ProposalSpec) -> str:
+    rng = np.random.default_rng([STYLE_SEED, spec.project_id, 2])
+
+    def pick(options):
+        return options[rng.integers(len(options))]
+
     who = (f"{spec.beneficiaries:,} {spec.beneficiary_group}" if spec.beneficiaries is not None
            else f"{spec.beneficiary_group} (do not give a number)")
-    lines = [
-        f"Proposal id: {spec.project_id}",
-        f"NGO: {spec.ngo_name}, founded {spec.founded}",
-        f"Location: {spec.district} district, {spec.state}",
-        f"Activities: {'; '.join(spec.activities)}",
-        f"Who benefits: {who}",
-        f"Goal: {_goal(spec)}",
-        f"Duration: {spec.duration_months} months",
-        f"Total budget: Rs {_indian(spec.amount)} ({_in_words(spec.amount)})",
+    activities = "; ".join(pick(ACTIVITY_DESCRIPTIONS[a]) for a in spec.activities)
+    label = pick(METRIC_PHRASES[spec.metric_label])
+    body = [
+        f"{pick(_LABELS['ngo'])}: {spec.ngo_name}, {pick(_LABELS['founded']).format(y=spec.founded)}",
+        f"{pick(_LABELS['location'])}: {spec.district} district, {spec.state}",
+        f"{pick(_LABELS['activities'])}: {activities}",
+        f"{pick(_LABELS['who'])}: {who}",
+        f"{pick(_LABELS['goal'])}: {_goal(spec, label)}",
+        f"{pick(_LABELS['duration'])}: {spec.duration_months} months",
+        f"{pick(_LABELS['budget'])}: Rs {_indian(spec.amount)} ({_in_words(spec.amount)})",
     ]
     if spec.budget_lines:
-        lines.append("Budget breakdown: " + "; ".join(f"{item} Rs {_indian(a)}" for item, a in spec.budget_lines))
+        body.append(f"{pick(_LABELS['breakdown'])}: "
+                    + "; ".join(f"{pick(BUDGET_ITEM_PHRASES[item])} Rs {_indian(a)}"
+                                for item, a in spec.budget_lines))
+    body = [body[i] for i in rng.permutation(len(body))]
+
     banned = []
     if spec.beneficiaries is None:
         banned.append("the number of beneficiaries")
     if "baseline" in spec.omitted:
-        banned.append(f"the current {spec.metric_label}")
+        banned.append(f"the current {label}")
     if not spec.budget_lines:
         banned.append("a budget breakdown or any line-item amount")
     banned.append("any number not listed above")
-    lines.append("Do not state: " + "; ".join(banned))
-    lines.append(f"Style: {spec.style}, about {spec.length_words} words")
-    return "\n".join(lines)
+    return "\n".join([
+        f"Proposal id: {spec.project_id}",
+        *body,
+        "Do not state: " + "; ".join(banned),
+        f"Style: {spec.style}, about {spec.length_words} words",
+    ])
 
 
 def batch_prompt(specs: list[ProposalSpec]) -> str:
@@ -204,6 +235,7 @@ def generate(specs: list[ProposalSpec], router, out_path: Path, batch_size: int 
 
     attempts: Counter = Counter()
     reasons: Counter = Counter()
+    detailed: Counter = Counter()
     by_provider: Counter = Counter()
     stats = {"accepted": 0, "gave_up": 0, "stopped": None}
 
@@ -236,6 +268,7 @@ def generate(specs: list[ProposalSpec], router, out_path: Path, batch_size: int 
                     continue
                 attempts[spec.project_id] += 1
                 reasons.update(r.split(":")[0] for r in result.reasons)
+                detailed.update(result.reasons)
                 if attempts[spec.project_id] < max_attempts:
                     queue.append(spec)
                 else:
@@ -243,7 +276,8 @@ def generate(specs: list[ProposalSpec], router, out_path: Path, batch_size: int 
             log(f"{completion.provider}: accepted {stats['accepted']}, queued {len(queue)}, "
                 f"gave up {stats['gave_up']}")
 
-    stats.update(remaining=len(queue), by_provider=dict(by_provider), rejection_reasons=dict(reasons))
+    stats.update(remaining=len(queue), by_provider=dict(by_provider), rejection_reasons=dict(reasons),
+                 top_rejections=dict(detailed.most_common(12)))
     return stats
 
 
@@ -288,6 +322,7 @@ def main() -> None:
     print(f"\naccepted {stats['accepted']}, gave up {stats['gave_up']}, still queued {stats['remaining']} "
           f"in {(time.monotonic() - started) / 60:.1f} min | {OUT}: {total} of {len(specs)} proposals")
     print(f"by provider: {stats['by_provider']} | rejection reasons: {stats['rejection_reasons']}")
+    print(f"most common rejections: {stats['top_rejections']}")
     if stats["stopped"]:
         print(f"stopped early: {stats['stopped']}. Run `make proposals` again later to resume.")
 

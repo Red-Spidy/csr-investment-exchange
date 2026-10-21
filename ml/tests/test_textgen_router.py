@@ -163,3 +163,17 @@ def test_one_providers_bad_key_does_not_stop_the_others():
     providers = providers_from_env(env, client, warn=warnings.append)
     assert [p.name for p in providers] == ["groq"]
     assert len(warnings) == 1 and "gemini" in warnings[0]
+
+
+def test_prefers_a_pinned_version_over_a_moving_latest_alias():
+    # "-latest" can be repointed by the provider at any time; a numbered
+    # version keeps the corpus reproducible.
+    def handler(request):
+        return httpx.Response(200, json={"data": [
+            {"id": "models/gemini-flash-lite-latest"}, {"id": "models/gemini-3.8-flash-lite"},
+            {"id": "models/gemini-3.6-flash-lite"},
+        ]})
+    client = httpx.Client(transport=httpx.MockTransport(handler))
+    model = discover_model(client, "https://generativelanguage.googleapis.com/v1beta/openai/", "k",
+                           prefer=("flash-lite",), avoid=())
+    assert model == "gemini-3.8-flash-lite"

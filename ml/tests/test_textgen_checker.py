@@ -113,3 +113,18 @@ def test_a_number_shared_by_two_facts_is_labelled_at_the_right_place():
     duration, target = result.spans["duration"], result.spans["target"]
     assert text[duration[1]:duration[1] + 7] == " months"
     assert text[target[1]] == "%"
+
+
+@pytest.mark.parametrize("citation", [
+    " Funding is sought under Section 135 of the Companies Act, 2013.",
+    " This is eligible CSR spend under section 135 of the Companies Act 2013.",
+])
+def test_citing_the_csr_law_is_not_an_invented_number(citation):
+    # Real CSR proposals cite Section 135 of the Companies Act, 2013. Rejecting
+    # them would teach BERT that no proposal ever does.
+    assert check(_spec(), GOOD + citation).ok
+
+
+def test_a_bare_135_is_still_an_invented_number():
+    result = check(_spec(), GOOD.replace("reaching about", "across 135 households, reaching about"))
+    assert "invented:135" in result.reasons
