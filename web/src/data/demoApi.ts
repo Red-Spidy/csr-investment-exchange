@@ -2,12 +2,16 @@ import type { ActionResult, CommitmentView, ExchangeApi, ProjectDetail } from '.
 import { createDemoState } from './demo'
 import {
   RuleError, SqlError, commitFunds, esgTimeline, failMilestone, latestCommitment, matchReport,
-  ngoLeaderboard, projectScorecard, reportImpact, runRace, submitEvidence, terminateCommitment,
+  ngoLeaderboard, projectScorecard, reportImpact, reviewProject, runRace, submitEvidence, terminateCommitment,
   tryLedgerMutation, verifyMilestone, type Outcome,
 } from './engine'
 import type { DbState } from './types'
 
 const REVIEWER = 'Reviewer (demo)'
+
+/** BERT, XGBoost and the Isolation Forest are Python models; the browser cannot run them. */
+const NEEDS_API = (what: string) =>
+  `${what} needs the API, because the trained models run in Python. Start it with make api, then reload.`
 
 /** The whole database lives in this closure; every write replaces it atomically. */
 export function createDemoApi(): ExchangeApi {
@@ -84,6 +88,10 @@ export function createDemoApi(): ExchangeApi {
       return { ok: true, effects: [] }
     },
 
+    submitProposal: async () => ({ ok: false, kind: 'rule', error: NEEDS_API('Scoring a new proposal') }),
+    reviewProject: async (id, approve, note) =>
+      write(() => reviewProject(db, id, approve, REVIEWER, note, new Date())),
+    createRulebook: async () => ({ ok: false, kind: 'rule', error: NEEDS_API('Embedding a new rulebook') }),
     runRace: async guards => runRace(guards, new Date()),
     reset: async () => { db = createDemoState() },
   }

@@ -72,6 +72,9 @@ export function unitShort(unit: string): string {
     case 'percent_reduction': return '% fewer cases'
     case 'percent_increase': return '% higher'
     case 'hectares': return 'ha'
+    case 'percent': return '%'
+    case 'tonnes_per_month': return 'tonnes a month'
+    case 'normalised_0_1': return 'share of the claim'
     default: return unit.replace(/_/g, ' ')
   }
 }

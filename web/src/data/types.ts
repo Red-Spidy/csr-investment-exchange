@@ -45,7 +45,8 @@ export interface Project {
 export interface Extraction {
   projectId: number
   goals: string[]
-  targetMetric: { name: string; unit: string; baseline: number; target: number } | null
+  /** baseline is null when the reader found a target but no starting value. */
+  targetMetric: { name: string; unit: string; baseline: number | null; target: number } | null
   beneficiaries: { count: number | null; group: string } | null
   geography: { state: string; district: string | null; ruralUrban: string } | null
   sdgs: number[]

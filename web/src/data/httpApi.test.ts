@@ -16,6 +16,26 @@ function stubFetch(response: (() => Response) | Error) {
 
 afterEach(() => vi.unstubAllGlobals())
 
+describe('createHttpApi: proposals, rulebooks and review', () => {
+  it('posts each to its own route and body', async () => {
+    const f = stubFetch(reply(200, { ok: true, effects: [], projectId: 9 }))
+    const api = createHttpApi('/api')
+    const proposal = { ngoId: 1, title: 'T', proposalText: 'x'.repeat(60), sector: 'education' as const,
+      state: 'Bihar', requestedAmount: 900_000, durationMonths: 12, numPhases: 2 }
+    const rulebook = { companyId: 1, requirementText: 'Fund girls education', focusAreas: ['education' as const],
+      preferredStates: ['Bihar'], targetSdgs: [4, 5], minBudget: 0, maxBudget: 3_000_000 }
+    expect(await api.submitProposal(proposal)).toEqual({ ok: true, effects: [], projectId: 9 })
+    await api.reviewProject(7, true, 'budget received')
+    await api.createRulebook(rulebook)
+    const calls = f.mock.calls.map(c => c as unknown as [string, RequestInit])
+    expect(calls.map(([url, init]) => [url, init.method, JSON.parse(init.body as string)])).toEqual([
+      ['/api/projects', 'POST', proposal],
+      ['/api/projects/7/review', 'POST', { approve: true, note: 'budget received' }],
+      ['/api/rulebooks', 'POST', rulebook],
+    ])
+  })
+})
+
 describe('createHttpApi', () => {
   it('reads from the route that matches each ExchangeApi method', async () => {
     const f = stubFetch(reply(200, []))

@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { Link } from 'react-router-dom'
 import { PageHead, Pill, ScoreStack, Section, Sql, TableScroll, Loading } from '../components/ui'
+import type { Sector } from '../data/api'
 import { MATCH_WEIGHTS, type MatchRow } from '../data/engine'
 import { useExchange, useQuery } from '../data/store'
 import { shortCompany, shortTitle } from '../lib/bands'
@@ -26,12 +27,14 @@ export function Matching() {
   const { data: companies } = useQuery(api => api.companies())
   const { data: rulebooks } = useQuery(api => api.rulebooks())
   const company = companies?.find(c => c.id === companyId)
-  const rulebook = rulebooks?.find(r => r.companyId === companyId)
+  // The newest rulebook is the company's current requirement.
+  const rulebook = rulebooks?.filter(r => r.companyId === companyId).sort((a, b) => b.id - a.id)[0]
   const { data: report } = useQuery(
     api => (rulebook ? api.matches(rulebook.id) : Promise.resolve(undefined)), [rulebook?.id])
 
   const [confirming, setConfirming] = useState<number | null>(null)
   const [done, setDone] = useState<{ title: string; amount: number } | null>(null)
+  const [writing, setWriting] = useState(false)
 
   if (!company || !rulebook || !report) return <Loading page="Matching">Loading the rulebook</Loading>
 
@@ -50,7 +53,13 @@ export function Matching() {
       <PageHead
         title={`Which approved projects fit what ${name} asked for?`}
         lead="The database compares the rulebook with every project. Hard limits remove some, then it ranks the rest by how close they are in meaning, how much impact they promise and how far their spending can be trusted."
-      />
+      >
+        <button className="btn btn--quiet" aria-expanded={writing} onClick={() => setWriting(v => !v)}>
+          {writing ? 'Close the form' : 'Write a new rulebook'}
+        </button>
+      </PageHead>
+
+      {writing && <RulebookForm companyId={companyId} name={name} onSaved={() => setWriting(false)} />}
 
       <section className="rulebook" aria-labelledby="rb">
         <h2 id="rb" className="sr-only">{name}'s rulebook</h2>
@@ -181,3 +190,77 @@ export function Matching() {
     </>
   )
 }
+
+// ---------------------------------------------------------------- new rulebook
+
+const SECTORS: Sector[] = ['education', 'healthcare', 'water_sanitation', 'environment', 'livelihood']
+
+function RulebookForm({ companyId, name, onSaved }: { companyId: number; name: string; onSaved: () => void }) {
+  const { act, source } = useExchange()
+  const [text, setText] = useState('')
+  const [focus, setFocus] = useState<Sector[]>([])
+  const [states, setStates] = useState('')
+  const [sdgs, setSdgs] = useState('')
+  const [min, setMin] = useState('0')
+  const [max, setMax] = useState('')
+  const list = (v: string) => v.split(',').map(x => x.trim()).filter(Boolean)
+  const sdgList = list(sdgs).map(Number)
+  const badSdg = sdgList.some(n => !Number.isInteger(n) || n < 1 || n > 17)
+
+  return (
+    <Section id="new-rulebook" title={`A new rulebook for ${name}`}
+      hint={source === 'live'
+        ? 'Saved, then embedded with the same model as the projects, so the ranking below uses it straight away.'
+        : 'Embedding a rulebook needs the API, because the model runs in Python. Start it with make api.'}>
+      <form className="proposal-form" onSubmit={async e => {
+        e.preventDefault()
+        if (badSdg) return
+        const out = await act(`New rulebook for ${name}`, api => api.createRulebook({
+          companyId, requirementText: text.trim(), focusAreas: focus, preferredStates: list(states),
+          targetSdgs: sdgList, minBudget: Number(min) || 0, maxBudget: Number(max),
+        }))
+        if (out.ok) onSaved()
+      }}>
+        <div className="field proposal-form__text">
+          <label htmlFor="rb-text">What {name} wants to fund, in its own words</label>
+          <textarea id="rb-text" className="input" required minLength={10} maxLength={2000} rows={3}
+            placeholder="e.g. Girls' secondary education in rural Bihar, with a clear attendance target."
+            value={text} onChange={e => setText(e.target.value)} />
+        </div>
+        <fieldset className="field proposal-form__text">
+          <legend>Focus areas</legend>
+          <div className="filters">
+            {SECTORS.map(s => (
+              <label key={s} className="filter">
+                <input type="checkbox" checked={focus.includes(s)}
+                  onChange={e => setFocus(f => e.target.checked ? [...f, s] : f.filter(x => x !== s))} /> {sectorLabel(s)}
+              </label>
+            ))}
+          </div>
+        </fieldset>
+        <div className="field">
+          <label htmlFor="rb-states">Preferred states, comma-separated</label>
+          <input id="rb-states" className="input" placeholder="Any state" value={states} onChange={e => setStates(e.target.value)} />
+        </div>
+        <div className="field">
+          <label htmlFor="rb-sdgs">Target SDGs, comma-separated</label>
+          <input id="rb-sdgs" className="input" placeholder="e.g. 4, 5" value={sdgs} aria-invalid={badSdg || undefined}
+            onChange={e => setSdgs(e.target.value)} />
+          {badSdg && <span className="bad small">SDGs are whole numbers from 1 to 17.</span>}
+        </div>
+        <div className="field">
+          <label htmlFor="rb-min">Smallest project (₹)</label>
+          <input id="rb-min" className="input" type="number" min={0} step={10000} value={min} onChange={e => setMin(e.target.value)} />
+        </div>
+        <div className="field">
+          <label htmlFor="rb-max">Largest project (₹)</label>
+          <input id="rb-max" className="input" type="number" required min={1} step={10000} value={max} onChange={e => setMax(e.target.value)} />
+        </div>
+        <div className="proposal-form__actions">
+          <button className="btn" type="submit" disabled={badSdg}>Save and embed</button>
+        </div>
+      </form>
+    </Section>
+  )
+}
+

@@ -2,10 +2,11 @@ import { useMemo, useState } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
 import { Cloth } from '../components/Cloth'
 import { Grade, Meter, PageHead, RangeBar, ScoreStack, Section, StatusPill, TableScroll, Loading } from '../components/ui'
-import type { CommitmentView, ProjectDetail } from '../data/api'
-import { useQuery } from '../data/store'
+import type { CommitmentView, ProjectDetail, Sector } from '../data/api'
+import { useExchange, useQuery } from '../data/store'
 import type { SpendingHistory } from '../data/types'
 import { commitmentBands } from '../lib/bands'
+import { promisedChange } from '../lib/claim'
 import { inr, inrCompact, num } from '../lib/format'
 import { metricLabel, sdgName, sectorLabel, unitShort } from '../lib/labels'
 
@@ -22,6 +23,9 @@ export function Projects() {
   const navigate = useNavigate()
   const { data: rows } = useQuery(api => api.scorecard())
   const [filter, setFilter] = useState<Filter>('all')
+  const [submitting, setSubmitting] = useState(false)
+  const ngos = useMemo(() => [...new Map((rows ?? []).map(r => [r.ngoId, r.ngoName])).entries()]
+    .map(([id, name]) => ({ id, name })).sort((a, b) => a.name.localeCompare(b.name)), [rows])
 
   const visible = useMemo(() => (rows ?? []).filter(r =>
     filter === 'all' ? true
@@ -35,7 +39,15 @@ export function Projects() {
       <PageHead
         title="Every proposal is scored before it can get money."
         lead="Models read each proposal, predict its impact and screen the NGO's spending history. They produce evidence. A person decides, and SQL moves the money."
-      />
+      >
+        <button className="btn" aria-expanded={submitting} onClick={() => setSubmitting(v => !v)}>
+          {submitting ? 'Close the form' : 'Submit a proposal'}
+        </button>
+      </PageHead>
+
+      {submitting && ngos.length > 0 && (
+        <SubmitProposal ngos={ngos} onSubmitted={pid => { setSubmitting(false); navigate(`/projects/${pid}`) }} />
+      )}
 
       <div className="split">
         <div className="split__list">
@@ -93,7 +105,8 @@ function ProjectView({ d }: { d: ProjectDetail }) {
   const { project: p, ngo, extraction: x, prediction: ip, fraud: fs, risk: rg, history, commitment } = d
 
   const target = x?.targetMetric
-  const promised = target ? Math.abs(target.target - target.baseline) : null
+  // A forecast in "share of the claim" units cannot be held against a promise in points.
+  const promised = ip?.metricUnit === 'normalised_0_1' ? null : promisedChange(target)
   const signals = flagSignals(d)
 
   return (
@@ -136,7 +149,9 @@ function ProjectView({ d }: { d: ProjectDetail }) {
                 {target ? (
                   <>
                     <strong>{metricLabel(target.name)}</strong>
-                    <span className="num"> from {target.baseline} to {target.target} {unitShort(target.unit)}</span>
+                    {target.baseline != null
+                      ? <span className="num"> from {target.baseline} to {target.target} {unitShort(target.unit)}</span>
+                      : <span className="num"> to {target.target} {unitShort(target.unit)}<span className="faint"> (no starting value stated)</span></span>}
                   </>
                 ) : <span className="bad">None stated, so progress cannot be checked.</span>}
               </dd>
@@ -179,7 +194,9 @@ function ProjectView({ d }: { d: ProjectDetail }) {
         <Section id="impact" title="What it is likely to achieve"
           hint={`${metricLabel(ip.metricName)}, measured in ${unitShort(ip.metricUnit)}. The shaded range holds 80% of the model's outcomes.`}>
           <RangeBar low={ip.ciLow} value={ip.predictedValue} high={ip.ciHigh} target={promised} unit={unitShort(ip.metricUnit)} />
-          <p className="verdict">{impactVerdict(ip.predictedValue, promised, unitShort(ip.metricUnit))}</p>
+          <p className="verdict">{ip.metricUnit === 'normalised_0_1'
+            ? `No baseline and target were both read, so the forecast is the share of the claim the model expects to be delivered: ${ip.predictedValue.toFixed(2)}.`
+            : impactVerdict(ip.predictedValue, promised, unitShort(ip.metricUnit))}</p>
           <div className="meter-row">
             <span>Normalised impact score</span>
             <Meter value={ip.impactNorm} label="Normalised impact score" />
@@ -190,7 +207,7 @@ function ProjectView({ d }: { d: ProjectDetail }) {
 
       {fs && (
         <Section id="fraud" title="Does the spending look right?"
-          hint="An Isolation Forest compares the NGO's last two years of spending. A high score means the pattern changed in ways honest NGOs rarely do.">
+          hint="An Isolation Forest compares each year of the NGO's spending with its other years and with other NGOs. The score is a percentile: 0.9 means more unusual than 90% of NGOs.">
           <div className="meter-row">
             <span>Anomaly score</span>
             <Meter value={fs.anomalyScore} tone={fs.isAnomaly ? 'madder' : fs.anomalyScore > 0.35 ? 'turmeric' : 'neem'} label="Anomaly score" />
@@ -207,6 +224,8 @@ function ProjectView({ d }: { d: ProjectDetail }) {
         </Section>
       )}
 
+      {p.status === 'flagged' && !commitment && <Review projectId={p.id} />}
+
       {commitment && (
         <Section id="funding" title="Funding"
           hint={fundingHint(commitment)}>
@@ -215,6 +234,101 @@ function ProjectView({ d }: { d: ProjectDetail }) {
         </Section>
       )}
     </article>
+  )
+}
+
+// ---------------------------------------------------------------- review and submission
+
+function Review({ projectId }: { projectId: number }) {
+  const { act } = useExchange()
+  const [note, setNote] = useState('')
+  const decide = (approve: boolean) =>
+    act(`${approve ? 'Approve' : 'Reject'} project ${projectId}`, api => api.reviewProject(projectId, approve, note.trim() || null))
+  return (
+    <Section id="review" title="Your decision"
+      hint="The grade sent this project to a person. Approving puts it in the matching pool; rejecting closes it. The decision is kept: running the models again will not overturn it.">
+      <form className="inline-form" onSubmit={e => { e.preventDefault(); decide(true) }}>
+        <div className="field">
+          <label htmlFor="review-note">What you checked</label>
+          <input id="review-note" className="input" value={note} maxLength={500}
+            placeholder="e.g. spending explained by a one-off grant" onChange={e => setNote(e.target.value)} />
+        </div>
+        <button className="btn" type="submit">Approve</button>
+        <button className="btn btn--danger" type="button" onClick={() => decide(false)}>Reject</button>
+      </form>
+    </Section>
+  )
+}
+
+const SECTORS: Sector[] = ['education', 'healthcare', 'water_sanitation', 'environment', 'livelihood']
+
+function SubmitProposal({ ngos, onSubmitted }: {
+  ngos: { id: number; name: string }[]
+  onSubmitted: (projectId: number) => void
+}) {
+  const { act, source } = useExchange()
+  const [f, setF] = useState({ ngoId: ngos[0].id, title: '', sector: 'education' as Sector, state: '',
+    amount: '', duration: '12', phases: '3', text: '' })
+  const set = (k: keyof typeof f) => (e: { target: { value: string } }) => setF(v => ({ ...v, [k]: e.target.value }))
+
+  return (
+    <Section id="submit" title="Submit a proposal"
+      hint={source === 'live'
+        ? 'BERT reads it, the Isolation Forest checks the NGO\'s spending, XGBoost forecasts the impact, and fn_grade_project decides. Takes a few seconds; the first one also loads the models.'
+        : 'Scoring needs the API, because the models run in Python. Start it with make api.'}>
+      <form className="proposal-form" onSubmit={async e => {
+        e.preventDefault()
+        const out = await act(`Submit proposal: ${f.title}`, api => api.submitProposal({
+          ngoId: Number(f.ngoId), title: f.title.trim(), proposalText: f.text.trim(), sector: f.sector,
+          state: f.state.trim() || null, requestedAmount: Number(f.amount),
+          durationMonths: Number(f.duration), numPhases: Number(f.phases),
+        }))
+        if (out.ok && out.projectId) onSubmitted(out.projectId)
+      }}>
+        <div className="field">
+          <label htmlFor="sp-ngo">NGO</label>
+          <select id="sp-ngo" className="select" value={f.ngoId} onChange={set('ngoId')}>
+            {ngos.map(n => <option key={n.id} value={n.id}>{n.name}</option>)}
+          </select>
+        </div>
+        <div className="field">
+          <label htmlFor="sp-title">Project title</label>
+          <input id="sp-title" className="input" required minLength={3} maxLength={200} value={f.title} onChange={set('title')} />
+        </div>
+        <div className="field">
+          <label htmlFor="sp-sector">Sector</label>
+          <select id="sp-sector" className="select" value={f.sector} onChange={set('sector')}>
+            {SECTORS.map(s => <option key={s} value={s}>{sectorLabel(s)}</option>)}
+          </select>
+        </div>
+        <div className="field">
+          <label htmlFor="sp-state">State</label>
+          <input id="sp-state" className="input" maxLength={80} value={f.state} onChange={set('state')} />
+        </div>
+        <div className="field">
+          <label htmlFor="sp-amount">Amount requested (₹)</label>
+          <input id="sp-amount" className="input" type="number" required min={1} step={1000} inputMode="numeric"
+            value={f.amount} onChange={set('amount')} />
+        </div>
+        <div className="field">
+          <label htmlFor="sp-duration">Duration (months)</label>
+          <input id="sp-duration" className="input" type="number" required min={1} max={120} value={f.duration} onChange={set('duration')} />
+        </div>
+        <div className="field">
+          <label htmlFor="sp-phases">Paid in phases</label>
+          <input id="sp-phases" className="input" type="number" required min={1} max={12} value={f.phases} onChange={set('phases')} />
+        </div>
+        <div className="field proposal-form__text">
+          <label htmlFor="sp-text">The proposal, in the NGO's own words</label>
+          <textarea id="sp-text" className="input" required minLength={50} maxLength={8000} rows={7}
+            placeholder="What you will do, where, for whom, what will change and by how much, how long it takes and what it costs."
+            value={f.text} onChange={set('text')} />
+        </div>
+        <div className="proposal-form__actions">
+          <button className="btn" type="submit">Submit and score</button>
+        </div>
+      </form>
+    </Section>
   )
 }
 

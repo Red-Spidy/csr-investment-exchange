@@ -24,6 +24,8 @@ class RuleError(Exception):
 class Written:
     effects: list[dict[str, str]] = field(default_factory=list)
     commitment_id: int | None = None
+    project_id: int | None = None
+    rulebook_id: int | None = None
 
     def add(self, by: str, text: str) -> None:
         self.effects.append({"by": by, "text": text})
@@ -293,3 +295,101 @@ def attempt_ledger_mutation(conn: Connection, op: Literal["UPDATE", "DELETE"], l
     out = Written()
     out.add("fund_transactions", f"{op} succeeded on row {ledger_id} and was rolled back by the API.")
     return out
+
+
+# ---------------------------------------------------------------- proposals, rulebooks, review
+
+def submit_proposal(conn: Connection, ngo_id: int, title: str, proposal_text: str, sector: str,
+                    state: str | None, amount: Decimal, duration_months: int, num_phases: int) -> Written:
+    """A new project starts pending; nothing about it is decided here."""
+    row = _row(
+        conn,
+        """INSERT INTO projects (ngo_id, title, proposal_text, sector, state, requested_amount,
+                                 duration_months, num_phases)
+           VALUES (%s, %s, %s, %s, %s, %s, %s, %s) RETURNING id""",
+        (ngo_id, title, proposal_text, sector, state, amount, duration_months, num_phases),
+    )
+    out = Written(project_id=row["id"])
+    out.add("projects", f"Saved project {row['id']} as pending: {title}, {inr(float(amount))} "
+                        f"over {duration_months} months.")
+    return out
+
+
+_UNITS = {"percentage_points": "points", "percent": "%", "percent_increase": "% higher",
+          "hectares": "hectares", "tonnes_per_month": "tonnes a month"}
+
+
+def _field_text(name: str, value: Any) -> str:
+    if name == "amount":
+        return f"amount {inr(float(value))}"
+    if name == "duration":
+        return f"duration {num(value)} months"
+    return f"{name} {num(value) if isinstance(value, (int, float)) else value}"
+
+
+def scoring_effects(r: dict[str, Any]) -> Written:
+    """What each model found and what the grade decided, from ml/pipeline/score.py."""
+    out = Written()
+    fields = ", ".join(_field_text(k, v) for k, v in sorted(r["fields"].items()))
+    flags = "; ".join(r["red_flags"]) or "none"
+    out.add("BERT", f"SDGs {', '.join(map(str, r['sdgs']))}; outcome metric {r['metric_name'].replace('_', ' ')}; "
+                    f"read {fields or 'no stated facts'}. Red flags: {flags}.")
+    flag = "flagged for review" if r["fraud_flag"] else "not flagged"
+    out.add("Isolation Forest", f"NGO spending anomaly {r['anomaly']:.2f} (percentile against training NGOs), {flag}.")
+    f = r["forecast"]
+    if f["metric_unit"] == "normalised_0_1":
+        forecast = (f"Expects {f['predicted_value']:.2f} of the claimed improvement to be delivered, 80% interval "
+                    f"[{f['ci_low']:.2f}, {f['ci_high']:.2f}]. No baseline and target were both read, so it "
+                    "cannot be put in the proposal's own units.")
+    else:
+        unit = _UNITS.get(f["metric_unit"], f["metric_unit"].replace("_", " "))
+        forecast = (f"Forecast {f['predicted_value']:+.2f} {unit} of {f['metric_name'].replace('_', ' ')}, "
+                    f"80% interval [{f['ci_low']:+.2f}, {f['ci_high']:+.2f}].")
+    out.add("XGBoost", forecast)
+    verdict = "approved into the matching pool" if r["decision"] == "approved" else "sent to manual review"
+    out.add("fn_grade_project", f"Grade {r['grade']} (composite {r['composite']:.4f}): {verdict}. "
+                                f"Project status is now {r['status']}.")
+    return out
+
+
+def review_project(conn: Connection, project_id: int, approve: bool, reviewer: str, note: str | None) -> Written:
+    """fn_review_project: a person settles what the grade routed to them."""
+    decision = _row(conn, "SELECT fn_review_project(%s, %s, %s, %s)::text AS decision",
+                    (project_id, approve, reviewer, note))["decision"]
+    out = Written(project_id=project_id)
+    reason = f": {note}" if note else ""
+    out.add("fn_review_project", f"Project {project_id} {decision} by {reviewer}{reason}. Kept in "
+                                 "project_reviews, so a later regrade will not overturn it.")
+    if decision == "approved":
+        out.add("projects", f"Project {project_id} is now in the matching pool.")
+    return out
+
+
+def create_rulebook(conn: Connection, company_id: int, requirement_text: str, focus_areas: list[str],
+                    preferred_states: list[str], target_sdgs: list[int], min_budget: Decimal,
+                    max_budget: Decimal) -> Written:
+    company = conn.execute("SELECT name, fy FROM companies WHERE id = %s", (company_id,)).fetchone()
+    if company is None:
+        raise NotFound(f"company {company_id} not found")
+    row = _row(
+        conn,
+        """INSERT INTO csr_rulebooks (company_id, fy, requirement_text, focus_areas, preferred_states,
+                                      target_sdgs, min_budget, max_budget)
+           VALUES (%s, %s, %s, %s, %s, %s, %s, %s) RETURNING id""",
+        (company_id, company["fy"], requirement_text, focus_areas, preferred_states, target_sdgs,
+         min_budget, max_budget),
+    )
+    out = Written(rulebook_id=row["id"])
+    out.add("csr_rulebooks", f"Saved rulebook {row['id']} for {company['name']} ({company['fy']}), "
+                             f"budget {inr(float(min_budget))} to {inr(float(max_budget))}.")
+    return out
+
+
+def store_rulebook_embedding(conn: Connection, rulebook_id: int, vector: list[float]) -> Written:
+    text = "[" + ",".join(f"{x:.6f}" for x in vector) + "]"
+    conn.execute("UPDATE csr_rulebooks SET embedding = %s::vector WHERE id = %s", (text, rulebook_id))
+    out = Written(rulebook_id=rulebook_id)
+    out.add("csr_rulebooks", f"Embedded rulebook {rulebook_id} with MiniLM, the same model as the projects, "
+                             "so fn_match_projects can rank it now.")
+    return out
+

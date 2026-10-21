@@ -395,3 +395,12 @@
   .feed li time { display: none; }
   .todo li { flex-direction: column; align-items: flex-start; }
 }
+
+/* ---------------------------------------------------------------- proposal submission */
+.proposal-form {
+  display: grid;
+  gap: 0.9rem 1rem;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 14rem), 1fr));
+}
+.proposal-form__text, .proposal-form__actions { grid-column: 1 / -1; }
+.proposal-form textarea { resize: vertical; min-height: 9rem; line-height: 1.5; }

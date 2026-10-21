@@ -1,4 +1,4 @@
-// In-browser port of the database rules in db/migrations/004 to 007.
+// In-browser port of the database rules in db/migrations/004 to 008.
 // Every function takes a DbState and returns a new one (or throws), so a thrown
 // SqlError leaves the caller's state untouched, which is what ROLLBACK means.
 // Error messages are copied from the plpgsql so the UI can show the real text.
@@ -381,6 +381,30 @@ export function reportImpact(prev: DbState, projectId: number, value: number, no
         by: 'company_esg_timeline',
         text: `The view recomputes on read. For that month the 3-month average is now ${row.rolling3mo.toFixed(2)} and the running total ${row.cumulativeImpact.toFixed(2)}.`,
       }] : []),
+    ],
+  }
+}
+
+// ------------------------------------------------------------ fn_review_project
+
+/** fn_review_project (008_risk_grade.sql): a person settles what the grade sent to review. */
+export function reviewProject(
+  prev: DbState, projectId: number, approve: boolean, reviewer: string, note: string | null, now: Date,
+): Outcome {
+  const s = clone(prev)
+  const p = mustFind(s.projects, x => x.id === projectId, `project ${projectId} not found`)
+  if (p.status !== 'flagged' || s.commitments.some(c => c.projectId === projectId)) {
+    throw new SqlError(`project ${projectId} is ${p.status}, only a flagged project with no commitment can be reviewed`)
+  }
+  if (!reviewer.trim()) throw new SqlError('a review needs a reviewer')
+  const decision: ProjectStatus = approve ? 'approved' : 'rejected'
+  setProjectStatus(p, decision)
+  pushAudit(s, 'project', projectId, 'reviewed', { decision, reviewer, note }, now)
+  return {
+    state: s, value: undefined,
+    effects: [
+      { by: 'fn_review_project', text: `Project ${projectId} ${decision} by ${reviewer}${note ? `: ${note}` : ''}. Kept in project_reviews, so a later regrade will not overturn it.` },
+      ...(approve ? [{ by: 'projects', text: `Project ${projectId} is now in the matching pool.` }] : []),
     ],
   }
 }

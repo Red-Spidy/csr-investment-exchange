@@ -91,6 +91,9 @@ the database did, or the exact error it raised.
 | `POST /api/milestones/{id}/evidence`, `/verify`, `/fail` | `UPDATE milestones`, which fires `trg_release_next_phase` or `trg_hold_on_failed_verification`. The API refuses to verify a milestone with no submitted evidence. |
 | `POST /api/commitments/{id}/terminate` | `fn_terminate_commitment`. Body `{"reason": "..."}`; the reason and the reviewer (`CSR_REVIEWER`) go into the ledger and the audit log. |
 | `POST /api/projects/{id}/impact-reports` | `INSERT INTO impact_reports`. Refused for a terminated project. |
+| `POST /api/projects` | An NGO's proposal: `INSERT INTO projects` as `pending` and commit, then the trained models score it and `fn_grade_project` decides. The receipt says what each model found. If scoring fails, the proposal stays saved as `pending` and the receipt says why. |
+| `POST /api/projects/{id}/review` | `fn_review_project`: approve or reject a project the grade sent to review. Body `{"approve": true, "note": "..."}`. |
+| `POST /api/rulebooks` | A company's CSR requirements: `INSERT INTO csr_rulebooks`, then embedded with the same model as the projects so `fn_match_projects` can rank them at once. |
 | `POST /api/ledger/{id}/attempts` | an `UPDATE` or `DELETE` on `fund_transactions`, always rolled back |
 | `POST /api/safeguards/race` | two real sessions racing for one project, in a throwaway schema built from migrations 002 and 004 |
 | `POST /api/reset` | rebuilds from `db/migrations` and `db/seed.sql`. Off unless `CSR_ALLOW_RESET=1` (`make api` sets it). |
@@ -144,7 +147,8 @@ and the demo results are in `ml/pipeline/README.md`.
 
 Rebuilding: `make datasets` (byte-identical), `make train` (fraud and impact, about 15 s),
 `make train-bert` (about 2 h), `make proposals` (BERT's training text; needs a Gemini or
-Groq key in `.env`).
+Groq key in `.env`). BERT on text it never trained on: `make eval-human` (the team's
+hand-written proposals) and `make eval-unseen` (another LLM's rewrites of the test projects).
 
 ## Status
 
@@ -156,18 +160,23 @@ Built and verified:
 - FastAPI layer (`api/`) with tests against real Postgres, including a real two-session race
 - React frontend (`web/`): six screens, on the API or on an in-browser demo store. `npm test` pins
   the demo's ported matching, window-view and trigger logic to numbers read from this database.
-- Synthetic training data: 500 NGOs, 2,000 projects, 2,416 NGO-years of spending, and 1,300
+- Synthetic training data: 500 NGOs, 2,000 projects, 2,416 NGO-years of spending, and 2,000
   LLM-written proposals, each checked fact by fact
 - Isolation Forest, XGBoost and three BERT readers, evaluated on held-out NGOs
 - Risk grade and manual review in SQL, and a scoring pipeline (`make score`) that writes real
   model output into the database; an end-to-end test runs it against a throwaway database
+- Live submission: an NGO submits a proposal on the Projects page and the models score it in a few
+  seconds; a reviewer approves or rejects what the grade flagged; a company writes a new rulebook on
+  the Matching page. The first submission after `make api` also loads the models. The in-browser demo
+  can review, but scoring and embedding need the API, where the Python models run.
 
 Still to do:
 
-- About 700 Groq-written proposals, with the unlabelled context counts of prompt `p4`; then
-  retrain BERT on Gemini text alone and test it on Groq's, a writer it never saw
-- The team's 40 hand-written proposals, and BERT's score on them
-- An API route and a screen for `fn_review_project` (the SQL exists)
+- The unseen-writer test: add `GROQ_API_KEY` to `.env`, then `make proposals-unseen` and
+  `make eval-unseen` (Groq rewrites the test projects; BERT never trained on Groq's text)
+- The team's 40 hand-written proposals from `ml/datasets/human_test/fact_sheets.md`, then
+  `make eval-human`
+- DevOps from the deck: a GitHub Actions workflow and Docker images for the API and frontend
 
 The extraction, impact, fraud and risk-grade rows in `db/seed.sql` are hand-written
 placeholders, and its embeddings synthetic topic vectors, so the database tests and the

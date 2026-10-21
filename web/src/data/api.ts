@@ -12,8 +12,33 @@ import type {
 } from './types'
 
 export type ActionResult =
-  | { ok: true; effects: Effect[]; commitmentId?: number }
+  | { ok: true; effects: Effect[]; commitmentId?: number; projectId?: number; rulebookId?: number }
   | { ok: false; error: string; kind: 'sql' | 'rule'; code?: string }
+
+export type Sector = 'education' | 'healthcare' | 'water_sanitation' | 'environment' | 'livelihood'
+
+/** A new NGO proposal. It starts pending; the models score it and fn_grade_project decides. */
+export interface ProposalArgs {
+  ngoId: number
+  title: string
+  proposalText: string
+  sector: Sector
+  state: string | null
+  requestedAmount: number
+  durationMonths: number
+  numPhases: number
+}
+
+/** A company's CSR requirements, embedded so fn_match_projects can rank projects for it. */
+export interface RulebookArgs {
+  companyId: number
+  requirementText: string
+  focusAreas: Sector[]
+  preferredStates: string[]
+  targetSdgs: number[]
+  minBudget: number
+  maxBudget: number
+}
 
 export interface CommitmentView {
   commitment: Commitment
@@ -66,6 +91,12 @@ export interface ExchangeApi {
   reportImpact(projectId: number, value: number): Promise<ActionResult>
   /** Attempt to rewrite history in fund_transactions. */
   tryLedgerMutation(op: 'UPDATE' | 'DELETE', ledgerId: number): Promise<ActionResult>
+  /** INSERT INTO projects as pending, then the models score it and fn_grade_project decides. Needs the API. */
+  submitProposal(args: ProposalArgs): Promise<ActionResult>
+  /** function fn_review_project: approve or reject a project the grade sent to review. */
+  reviewProject(projectId: number, approve: boolean, note: string | null): Promise<ActionResult>
+  /** INSERT INTO csr_rulebooks, embedded with the matching model. Needs the API. */
+  createRulebook(args: RulebookArgs): Promise<ActionResult>
   /** Two sessions, one project, on a scratch fixture. */
   runRace(guards: Guards): Promise<RaceResult>
   reset(): Promise<void>

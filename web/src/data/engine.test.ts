@@ -7,7 +7,7 @@ import { createDemoState } from './demo'
 import {
   ALL_GUARDS, RuleError, SqlError, commitFunds, esgTimeline, failMilestone, latestCommitment, matchReport,
   ngoLeaderboard, projectScorecard, reportImpact, runRace, submitEvidence, terminateCommitment,
-  tryLedgerMutation, verifyMilestone,
+  reviewProject, tryLedgerMutation, verifyMilestone,
 } from './engine'
 
 const NOW = new Date('2026-10-19T10:00:00Z')
@@ -281,3 +281,27 @@ describe('monthly progress', () => {
     expect(() => reportImpact(demo(), 2, 1, NOW)).toThrow(RuleError)
   })
 })
+
+describe('reviewProject, the port of fn_review_project', () => {
+  it('approves a flagged, unfunded project into the matching pool', () => {
+    const out = reviewProject(demo(), 7, true, 'Reviewer (demo)', 'budget breakdown received', NOW)
+    expect(out.state.projects.find(p => p.id === 7)!.status).toBe('approved')
+    expect(out.state.audit.at(-1)).toMatchObject({ entity: 'project', entityId: 7, action: 'reviewed' })
+    expect(out.effects.map(e => e.by)).toContain('fn_review_project')
+  })
+
+  it('rejects one', () => {
+    const out = reviewProject(demo(), 8, false, 'Reviewer (demo)', null, NOW)
+    expect(out.state.projects.find(p => p.id === 8)!.status).toBe('rejected')
+  })
+
+  it('refuses a project the grade did not send to review', () => {
+    expect(() => reviewProject(demo(), 2, true, 'Reviewer (demo)', null, NOW)).toThrow(SqlError)
+    expect(() => reviewProject(demo(), 2, true, 'Reviewer (demo)', null, NOW)).toThrow(/only a flagged project/)
+  })
+
+  it('refuses a funded project', () => {
+    expect(() => reviewProject(demo(), 1, true, 'Reviewer (demo)', null, NOW)).toThrow(SqlError)
+  })
+})
+

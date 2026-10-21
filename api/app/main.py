@@ -27,6 +27,7 @@ from . import reads, writes
 from .admin import reset_database
 from .db import database_url, make_pool
 from .race import Guards, run_race
+from .scoring import PipelineScorer
 
 PositiveId = Annotated[int, Field(gt=0)]
 
@@ -54,6 +55,36 @@ class LedgerAttemptBody(BaseModel):
     op: Literal["UPDATE", "DELETE"]
 
 
+Sector = Literal["education", "healthcare", "water_sanitation", "environment", "livelihood"]
+Money = Annotated[Decimal, Field(gt=0, max_digits=14, decimal_places=2)]
+
+
+class ProposalBody(BaseModel):
+    ngoId: PositiveId
+    title: Annotated[str, Field(min_length=3, max_length=200)]
+    proposalText: Annotated[str, Field(min_length=50, max_length=8000)]
+    sector: Sector
+    state: Annotated[str, Field(max_length=80)] | None = None
+    requestedAmount: Money
+    durationMonths: Annotated[int, Field(ge=1, le=120)]
+    numPhases: Annotated[int, Field(ge=1, le=12)] = 3
+
+
+class RulebookBody(BaseModel):
+    companyId: PositiveId
+    requirementText: Annotated[str, Field(min_length=10, max_length=2000)]
+    focusAreas: list[Sector] = []
+    preferredStates: list[Annotated[str, Field(min_length=1, max_length=80)]] = []
+    targetSdgs: list[Annotated[int, Field(ge=1, le=17)]] = []
+    minBudget: Annotated[Decimal, Field(ge=0, max_digits=14, decimal_places=2)] = Decimal(0)
+    maxBudget: Money
+
+
+class ReviewBody(BaseModel):
+    approve: bool
+    note: Annotated[str, Field(max_length=500)] | None = None
+
+
 class RaceBody(BaseModel):
     statusCheck: bool = True
     guardTrigger: bool = True
@@ -62,8 +93,11 @@ class RaceBody(BaseModel):
 
 def create_app(
     url: str | None = None, allow_reset: bool | None = None, pool_timeout: float = 10,
+    scorer: Any = None,
 ) -> FastAPI:
+    """`scorer` runs the trained models (app/scoring.py); tests pass a stand-in."""
     db_url = url or database_url()
+    scorer = scorer or PipelineScorer()
     reviewer = os.environ.get("CSR_REVIEWER", "Reviewer")
     reset_enabled = (
         os.environ.get("CSR_ALLOW_RESET") == "1" if allow_reset is None else allow_reset
@@ -123,6 +157,10 @@ def create_app(
         result: dict[str, Any] = {"ok": True, "effects": done.effects}
         if done.commitment_id is not None:
             result["commitmentId"] = done.commitment_id
+        if done.project_id is not None:
+            result["projectId"] = done.project_id
+        if done.rulebook_id is not None:
+            result["rulebookId"] = done.rulebook_id
         return result
 
     # ------------------------------------------------------------ health
@@ -205,6 +243,47 @@ def create_app(
     @api.post("/projects/{project_id}/impact-reports")
     def report_impact(project_id: PositiveId, body: ImpactBody, pool: Pool):
         return write(pool, lambda c: writes.report_impact(c, project_id, body.value))
+
+    @api.post("/projects")
+    def submit_proposal(body: ProposalBody, pool: Pool):
+        """Save the proposal as pending, commit, then score it. Scoring runs in its
+        own transaction, so a failure there never loses the submission."""
+        saved = write(pool, lambda c: writes.submit_proposal(
+            c, body.ngoId, body.title, body.proposalText, body.sector, body.state,
+            body.requestedAmount, body.durationMonths, body.numPhases))
+        if not saved["ok"]:
+            return saved
+        try:
+            with pool.connection() as conn:
+                result = scorer.score(conn, saved["projectId"])
+            saved["effects"] += writes.scoring_effects(result).effects
+        except Exception as err:   # noqa: BLE001 -- any scoring failure leaves a pending project
+            saved["effects"].append({"by": "pipeline", "text": (
+                f"Not scored: {err}. The proposal is saved as pending; run make score once the models "
+                "and the database are available.")})
+        return saved
+
+    @api.post("/projects/{project_id}/review")
+    def review(project_id: PositiveId, body: ReviewBody, pool: Pool):
+        return write(pool, lambda c: writes.review_project(c, project_id, body.approve, reviewer, body.note))
+
+    @api.post("/rulebooks")
+    def create_rulebook(body: RulebookBody, pool: Pool):
+        saved = write(pool, lambda c: writes.create_rulebook(
+            c, body.companyId, body.requirementText, list(body.focusAreas), body.preferredStates,
+            body.targetSdgs, body.minBudget, body.maxBudget))
+        if not saved["ok"]:
+            return saved
+        try:
+            vector = scorer.embed_rulebook(body.requirementText, list(body.focusAreas),
+                                           body.preferredStates, body.targetSdgs)
+            stored = write(pool, lambda c: writes.store_rulebook_embedding(c, saved["rulebookId"], vector))
+            saved["effects"] += stored["effects"] if stored["ok"] else [{"by": "csr_rulebooks", "text": stored["error"]}]
+        except Exception as err:   # noqa: BLE001 -- an unembedded rulebook is still a saved rulebook
+            saved["effects"].append({"by": "embedding", "text": (
+                f"Not embedded: {err}. fn_match_projects skips a rulebook without an embedding "
+                "until make score embeds it.")})
+        return saved
 
     @api.post("/ledger/{ledger_id}/attempts")
     def ledger_attempt(ledger_id: PositiveId, body: LedgerAttemptBody, pool: Pool):

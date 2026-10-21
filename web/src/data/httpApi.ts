@@ -78,6 +78,9 @@ export function createHttpApi(base = '/api'): ExchangeApi {
     terminateCommitment: (commitmentId, reason) => post(`/commitments/${commitmentId}/terminate`, { reason }),
     reportImpact: (projectId, value) => post(`/projects/${projectId}/impact-reports`, { value }),
     tryLedgerMutation: (op, ledgerId) => post(`/ledger/${ledgerId}/attempts`, { op }),
+    submitProposal: args => post('/projects', args),
+    reviewProject: (projectId, approve, note) => post(`/projects/${projectId}/review`, { approve, note }),
+    createRulebook: args => post('/rulebooks', args),
     runRace: guards => post('/safeguards/race', guards),
     reset: async () => { await post('/reset') },
   }
