@@ -9,6 +9,7 @@ dist/
 ml/artifacts/
 data/raw/
 .DS_Store
+.idea/
 
 # Downloaded datasets - regenerate via Kaggle, do not commit (4.7MB+)
 ml/data/*.csv
