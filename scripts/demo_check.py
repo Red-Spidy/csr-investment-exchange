@@ -6,7 +6,8 @@
 2. Start the API and the built frontend on spare ports, so a running `make api` is untouched.
 3. Walk the deck's workflow through the API the frontend uses, checking every step.
 4. Render every page in headless Chrome: a screenshot each, and its text checked.
-5. Reset and rescore through the API, the sidebar's Reset path, so the demo starts clean.
+5. Click through the whole product in Chrome as each party (web/e2e/journey.mjs).
+6. Reset and rescore through the API, the sidebar's Reset path, so the demo starts clean.
 
 Screenshots go to demo-check/ (gitignored). Exits 1 if any check fails.
 """
@@ -218,6 +219,21 @@ def pages(seen: dict) -> None:
               f"missing {missing}" if missing else f"shows {broken}")
 
 
+def journey() -> None:
+    """Click through the product as an NGO, the reviewer and companies would (web/e2e/journey.mjs)."""
+    print("\nThe product, used through the browser")
+    out = subprocess.run(["node", "e2e/journey.mjs"], cwd=ROOT / "web", capture_output=True, text=True,
+                         timeout=900, env={**os.environ, "WEB": WEB, "OUT": str(OUT / "journey") + "/"})
+    lines = [l for l in out.stdout.splitlines() if l.strip()]
+    for line in lines:
+        if line.lstrip().startswith(("✓", "✗")) or line.startswith("      "):
+            print("  " + line)
+    summary = next((l for l in reversed(lines) if "steps passed" in l), out.stderr.strip()[-300:] or "no output")
+    problems = [l for l in lines if l.startswith("  [")]
+    check(f"UI journey: {summary}", out.returncode == 0 and not problems,
+          "; ".join(problems[:3]) if problems else summary)
+
+
 # --------------------------------------------------------------------- main
 
 def main() -> int:
@@ -243,6 +259,7 @@ def main() -> int:
         with httpx.Client(base_url=API, timeout=180) as client:
             seen = workflow(client)
             pages(seen)
+            journey()
             print("\nLeaving a clean demo")
             reset = client.post("/reset", json={"score": True}).raise_for_status().json()
             check("Reset database rebuilds and rescores with the models",

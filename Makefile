@@ -1,7 +1,7 @@
 DB_URL ?= postgresql://csr:csr@localhost:5433/csr_exchange
 PSQL   := docker exec -i csr_db psql -U csr -d csr_exchange -v ON_ERROR_STOP=1
 
-.PHONY: up down migrate reset seed test-db test-ml test-api test demo psql datasets api web train train-fraud train-impact train-bert proposals score eval-human proposals-unseen eval-unseen demo-check
+.PHONY: up down migrate reset seed test-db test-ml test-api test demo psql datasets api web train train-fraud train-impact train-bert proposals score eval-human proposals-unseen eval-unseen demo-check ui-check
 
 up:
 	docker compose up -d
@@ -84,6 +84,10 @@ proposals:
 # rendered in headless Chrome. Leaves a clean, scored demo. Screenshots in demo-check/.
 demo-check:
 	.venv/bin/python scripts/demo_check.py
+
+# Click through the product on the running stack (make api, make web). Resets the demo data.
+ui-check:
+	cd web && node e2e/journey.mjs
 
 psql:
 	docker exec -it csr_db psql -U csr -d csr_exchange

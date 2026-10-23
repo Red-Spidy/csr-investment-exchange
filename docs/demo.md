@@ -4,13 +4,17 @@
 
 ```bash
 make up            # Postgres with pgvector (Docker)
-make demo-check    # about 30 s: runs the whole workflow, renders every page, leaves a clean scored demo
+make demo-check    # about 1 min: runs the workflow, clicks through every portal in Chrome, leaves a clean scored demo
 make api           # terminal 1: the API on http://localhost:8000
 make web           # terminal 2: the frontend on http://localhost:5173
 ```
 
 `make demo-check` must end with **all checks passed**. It needs the trained models in
-`ml/artifacts/` (`make train train-bert` once) and Google Chrome.
+`ml/artifacts/` (`make train train-bert` once) and Google Chrome. Its browser journey
+(`web/e2e/journey.mjs`) plays every party through the real pages: submit, review, fund,
+evidence, verify, fail and refund, safeguards, impact, and a phone-width pass. With `make api`
+and `make web` already running, `make ui-check` runs just that journey (about 40 s); it resets
+the demo data at the start and the end.
 
 Then open http://localhost:5173, continue as **Exchange reviewer** and click **Reset demo
 data** at the bottom of the sidebar once. It rebuilds the demo, rescores it with the models,
