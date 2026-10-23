@@ -167,3 +167,23 @@ def test_the_receipt_says_what_a_forecast_without_units_means(make_client):
     text = " ".join(e["text"] for e in r["effects"])
     assert "0.68 of the claimed improvement" in text and "₹9,00,000" in text and "12 months" in text
     assert "normalised" not in text
+
+
+class CountingScorer(FakeScorer):
+    def __init__(self):
+        super().__init__()
+        self.database_scored = 0
+
+    def score_database(self, conn):
+        self.database_scored += 1
+        return {"projects": 8, "rulebooks": 3}
+
+
+def test_reset_can_rescore_so_the_demo_keeps_real_model_output(fresh_db):
+    scorer = CountingScorer()
+    with TestClient(create_app(fresh_db, allow_reset=True, scorer=scorer)) as client:
+        assert post(client, "/reset", {"score": True}) == {"ok": True, "scored": {"projects": 8, "rulebooks": 3}}
+        assert scorer.database_scored == 1
+        # A plain reset, as the parity check uses, leaves the seed exactly as written.
+        assert post(client, "/reset", {}) == {"ok": True}
+        assert scorer.database_scored == 1

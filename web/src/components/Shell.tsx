@@ -22,7 +22,7 @@ function Icon({ d }: { d: string }) {
 }
 
 export function Shell() {
-  const { companyId, setCompanyId, reset, dismissReceipt, source, canReset, fault, retry } = useExchange()
+  const { companyId, setCompanyId, reset, resetting, dismissReceipt, source, canReset, fault, retry } = useExchange()
   const [confirmingReset, setConfirmingReset] = useState(false)
   const { pathname } = useLocation()
   // A receipt describes the last action; it should not follow you to another page.
@@ -102,13 +102,15 @@ export function Shell() {
             </div>
           )}
           {canReset && (source === 'demo' || !confirmingReset) && (
-            <button className="rail__reset" onClick={() => (source === 'demo' ? reset() : setConfirmingReset(true))}>
-              {source === 'demo' ? 'Reset demo' : 'Reset database'}
+            <button className="rail__reset" disabled={resetting} aria-busy={resetting || undefined}
+              onClick={() => (source === 'demo' ? reset() : setConfirmingReset(true))}>
+              {resetting ? (source === 'live' ? 'Rebuilding and rescoring…' : 'Resetting…')
+                : source === 'demo' ? 'Reset demo' : 'Reset database'}
             </button>
           )}
           {canReset && source === 'live' && confirmingReset && (
             <div className="rail__confirm" role="group" aria-label="Confirm database reset">
-              <p>Wipe every table and reload the demo scenario?</p>
+              <p>Wipe every table, reload the demo scenario and rescore it with the models? Takes a few seconds.</p>
               <div>
                 <button className="rail__reset rail__reset--danger"
                   onClick={() => { setConfirmingReset(false); void reset() }}>Yes, reset</button>

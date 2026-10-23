@@ -35,6 +35,8 @@ interface Ctx extends Link {
   /** Run a write, show its receipt, and refresh every read. */
   act: (title: string, run: (api: ExchangeApi) => Promise<ActionResult>) => Promise<ActionResult>
   reset: () => Promise<void>
+  /** True while a reset (and, live, the rescoring that follows it) is running. */
+  resetting: boolean
   /** Set when a request failed to reach the API (not when the database said no). */
   fault: string | null
   reportFault: (err: unknown) => void
@@ -141,12 +143,18 @@ function ExchangeSession({ link, children }: { link: Link; children: ReactNode }
 
   const dismissReceipt = useCallback(() => setReceipt(null), [])
 
+  const [resetting, setResetting] = useState(false)
   const reset = useCallback(async () => {
+    setResetting(true)
     try {
-      await api.reset()
+      // Live, the models rescore the rebuilt database, so the demo never falls back to
+      // the seed's hand-written placeholder scores.
+      await api.reset({ score: true })
     } catch (err) {
       reportFault(err)
       return
+    } finally {
+      setResetting(false)
     }
     setReceipt(null)
     setFault(null)
@@ -154,8 +162,8 @@ function ExchangeSession({ link, children }: { link: Link; children: ReactNode }
   }, [api, reportFault])
 
   const value = useMemo<Ctx>(() => ({
-    ...link, version, companyId, setCompanyId, receipt, dismissReceipt, act, reset, fault, reportFault, retry,
-  }), [link, version, companyId, setCompanyId, receipt, dismissReceipt, act, reset, fault, reportFault, retry])
+    ...link, version, companyId, setCompanyId, receipt, dismissReceipt, act, reset, resetting, fault, reportFault, retry,
+  }), [link, version, companyId, setCompanyId, receipt, dismissReceipt, act, reset, resetting, fault, reportFault, retry])
 
   return <ExchangeContext.Provider value={value}>{children}</ExchangeContext.Provider>
 }

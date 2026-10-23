@@ -41,6 +41,19 @@ class PipelineScorer:
         with self._lock:
             return self._pipeline().score_project(conn, models, project_id)
 
+    def score_database(self, conn) -> dict:
+        """What `make score` does: embed every rulebook, then score and grade every project."""
+        models = self._load()
+        score = self._pipeline()
+        with self._lock:
+            rulebooks = score.embed_rulebooks(conn, models)
+            with conn.cursor() as cur:
+                ids = [r["id"] if isinstance(r, dict) else r[0]
+                       for r in cur.execute("SELECT id FROM projects ORDER BY id").fetchall()]
+            for pid in ids:
+                score.score_project(conn, models, pid)
+        return {"projects": len(ids), "rulebooks": rulebooks}
+
     def embed_rulebook(self, requirement_text, focus_areas, preferred_states, target_sdgs) -> list[float]:
         """The same MiniLM embedding, over the same canonical text, as `make score`."""
         score = self._pipeline()

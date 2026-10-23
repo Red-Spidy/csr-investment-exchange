@@ -82,6 +82,6 @@ export function createHttpApi(base = '/api'): ExchangeApi {
     reviewProject: (projectId, approve, note) => post(`/projects/${projectId}/review`, { approve, note }),
     createRulebook: args => post('/rulebooks', args),
     runRace: guards => post('/safeguards/race', guards),
-    reset: async () => { await post('/reset') },
+    reset: async options => { await post('/reset', options ?? {}) },
   }
 }

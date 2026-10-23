@@ -99,5 +99,6 @@ export interface ExchangeApi {
   createRulebook(args: RulebookArgs): Promise<ActionResult>
   /** Two sessions, one project, on a scratch fixture. */
   runRace(guards: Guards): Promise<RaceResult>
-  reset(): Promise<void>
+  /** Rebuild from db/migrations and db/seed.sql; `score` then reruns the models, as `make score` does. */
+  reset(options?: { score?: boolean }): Promise<void>
 }

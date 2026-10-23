@@ -85,6 +85,12 @@ class ReviewBody(BaseModel):
     note: Annotated[str, Field(max_length=500)] | None = None
 
 
+class ResetBody(BaseModel):
+    # The UI's reset button rescores, so a demo never falls back to the seed's
+    # hand-written placeholders. The parity check resets without it.
+    score: bool = False
+
+
 class RaceBody(BaseModel):
     statusCheck: bool = True
     guardTrigger: bool = True
@@ -302,11 +308,17 @@ def create_app(
             raise HTTPException(500, f"could not run the race: {err.diag.message_primary or err}") from err
 
     @api.post("/reset")
-    def reset():
+    def reset(pool: Pool, body: ResetBody | None = None):
         if not reset_enabled:
             raise HTTPException(403, "reset is disabled; start the API with CSR_ALLOW_RESET=1")
         reset_database(db_url)
-        return {"ok": True}
+        if not (body and body.score):
+            return {"ok": True}
+        try:
+            with pool.connection() as conn:
+                return {"ok": True, "scored": scorer.score_database(conn)}
+        except Exception as err:   # noqa: BLE001 -- the reset itself succeeded
+            return {"ok": True, "scored": None, "error": f"rebuilt, but not scored: {err}"}
 
     app.include_router(api)
     return app
