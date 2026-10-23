@@ -1,7 +1,7 @@
 DB_URL ?= postgresql://csr:csr@localhost:5433/csr_exchange
 PSQL   := docker exec -i csr_db psql -U csr -d csr_exchange -v ON_ERROR_STOP=1
 
-.PHONY: up down migrate reset seed test-db test-ml test-api test demo psql datasets api web train train-fraud train-impact train-bert proposals score eval-human proposals-unseen eval-unseen
+.PHONY: up down migrate reset seed test-db test-ml test-api test demo psql datasets api web train train-fraud train-impact train-bert proposals score eval-human proposals-unseen eval-unseen demo-check
 
 up:
 	docker compose up -d
@@ -79,6 +79,11 @@ score:
 # BERT training text via Gemini/Groq (keys in .env). Resumable; LIMIT=300 for a pilot.
 proposals:
 	PYTHONPATH=ml .venv/bin/python -m textgen.generate $(if $(LIMIT),--limit $(LIMIT),)
+
+# The deck's workflow end to end: fresh scored database, API, built frontend, every page
+# rendered in headless Chrome. Leaves a clean, scored demo. Screenshots in demo-check/.
+demo-check:
+	.venv/bin/python scripts/demo_check.py
 
 psql:
 	docker exec -it csr_db psql -U csr -d csr_exchange

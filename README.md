@@ -20,6 +20,10 @@ make api                                # FastAPI on http://localhost:8000
 cd web && npm install && npm run dev    # frontend on http://localhost:5173
 ```
 
+**Presenting?** Follow [`docs/demo.md`](docs/demo.md). `make demo-check` runs the deck's
+whole workflow against the real stack, renders every page in headless Chrome, and leaves a
+clean, scored demo.
+
 The frontend looks for the API when it starts. If it answers, every number comes
 from Postgres. If it does not, the frontend falls back to an in-browser copy of
 the database rules, and the sidebar says which one you are looking at.

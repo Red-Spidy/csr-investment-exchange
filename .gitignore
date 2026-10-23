@@ -14,3 +14,6 @@ data/raw/
 # Downloaded datasets - regenerate via Kaggle, do not commit (4.7MB+)
 ml/data/*.csv
 ml/data/*.zip
+
+# make demo-check screenshots, logs and Chrome profile
+demo-check/
