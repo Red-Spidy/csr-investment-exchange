@@ -58,7 +58,7 @@ export function NewProposal() {
           </div>
           <div className="field">
             <label htmlFor="sp-amount">Amount requested (₹)</label>
-            <input id="sp-amount" className="input" type="number" required min={1} step={1000} inputMode="numeric"
+            <input id="sp-amount" className="input" type="number" required min={1} step={1} inputMode="numeric"
               value={f.amount} onChange={set('amount')} />
           </div>
           <div className="field">

@@ -78,18 +78,29 @@ export function Projects() {
   )
 }
 
-/** One project, inside whichever portal opened it. */
+/** One project, inside whichever portal opened it. An NGO sees only its own projects. */
 export function ProjectPage() {
   const projectId = Number(useParams().id)
-  const { to, role } = usePortal()
-  const { data: d } = useQuery(api => api.projectDetail(projectId), [projectId])
+  const { to, role, ngoId } = usePortal()
+  const { data: rows } = useQuery(api => api.scorecard())
+  const row = rows?.find(r => r.projectId === projectId)
+  const visible = !!row && (role !== 'ngo' || row.ngoId === ngoId)
+  const { data: d } = useQuery(
+    api => (visible ? api.projectDetail(projectId) : Promise.resolve(null)), [projectId, visible])
   const back = role === 'review' ? { to: to('/projects'), label: 'All projects' }
     : role === 'ngo' ? { to: to(), label: 'My projects' }
     : { to: to('/find'), label: 'Find projects' }
   return (
     <>
       <p className="crumb"><Link to={back.to}>{back.label}</Link></p>
-      {!d ? <Loading page="Project">Loading project</Loading> : <ProjectView d={d} key={d.project.id} />}
+      {rows && !visible ? (
+        <div className="empty">
+          <h1 className="sr-only">Project not found</h1>
+          <h3>Project not found</h3>
+          <p>There is no project at this address{role === 'ngo' ? ' in your organisation' : ''}.</p>
+          <Link className="btn btn--small btn--quiet" to={back.to}>{back.label}</Link>
+        </div>
+      ) : !d ? <Loading page="Project">Loading project</Loading> : <ProjectView d={d} key={d.project.id} />}
     </>
   )
 }

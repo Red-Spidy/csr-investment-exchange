@@ -1,13 +1,13 @@
 import { useState } from 'react'
 import { Link } from 'react-router-dom'
-import { HowItWorks, PageHead, Pill, ScoreStack, Section, Sql, TableScroll, Loading } from '../components/ui'
+import { HowItWorks, PageHead, ScoreStack, Section, Sql, StatusPill, TableScroll, Loading } from '../components/ui'
 import type { Sector } from '../data/api'
 import { MATCH_WEIGHTS, type MatchRow } from '../data/engine'
 import { usePortal } from '../data/portal'
 import { useExchange, useQuery } from '../data/store'
 import { shortTitle } from '../lib/bands'
 import { fixed, inr, inrCompact } from '../lib/format'
-import { sdgName, sectorLabel, STATUS_LABEL } from '../lib/labels'
+import { sdgName, sectorLabel } from '../lib/labels'
 
 const MATCH_SQL = `SELECT * FROM fn_match_projects(:rulebook_id, 5);
 
@@ -86,7 +86,7 @@ export function Matching() {
       )}
 
       <Section id="ranked" title={report?.ranked.length ? `${report.ranked.length} ${report.ranked.length === 1 ? 'match' : 'matches'}` : 'No matches yet'}
-        hint="Best fit first">
+        hint={report?.ranked.length ? 'Best fit first' : undefined}>
         {report && report.ranked.length === 0 && (
           <div className="empty">
             <h3>No approved project meets your criteria</h3>
@@ -170,7 +170,7 @@ export function Matching() {
                     <ul className="plain">
                       {e.reasons.map(r => <li key={r}>{r}</li>)}
                     </ul>
-                    {e.status !== 'approved' && <Pill tone={e.status === 'flagged' ? 'madder' : 'indigo'}>{STATUS_LABEL[e.status]}</Pill>}
+                    {e.status !== 'approved' && <StatusPill status={e.status} />}
                   </td>
                 </tr>
               ))}
@@ -253,11 +253,11 @@ function RulebookForm({ companyId, onSaved }: { companyId: number; onSaved: () =
         </div>
         <div className="field">
           <label htmlFor="rb-min">Smallest project (₹)</label>
-          <input id="rb-min" className="input" type="number" min={0} step={10000} value={min} onChange={e => setMin(e.target.value)} />
+          <input id="rb-min" className="input" type="number" min={0} step={1} value={min} onChange={e => setMin(e.target.value)} />
         </div>
         <div className="field">
           <label htmlFor="rb-max">Largest project (₹)</label>
-          <input id="rb-max" className="input" type="number" required min={1} step={10000} value={max} onChange={e => setMax(e.target.value)} />
+          <input id="rb-max" className="input" type="number" required min={1} step={1} value={max} onChange={e => setMax(e.target.value)} />
         </div>
         <div className="proposal-form__actions">
           <button className="btn" type="submit" disabled={badSdg}>Save criteria</button>

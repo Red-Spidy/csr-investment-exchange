@@ -47,6 +47,8 @@ h3 { font-size: 0.98rem; }
 
 /* ---------------------------------------------------------------- tables as registers */
 
+/* Positioned, so screen-reader-only labels inside a table stay within its scroll box. */
+.table-scroll { position: relative; }
 .table-scroll:has(.register) {
   background: var(--paper); border-radius: var(--r-md); box-shadow: 0 0 0 1px var(--rule);
 }
