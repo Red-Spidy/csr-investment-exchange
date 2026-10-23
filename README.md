@@ -24,9 +24,14 @@ cd web && npm install && npm run dev    # frontend on http://localhost:5173
 whole workflow against the real stack, renders every page in headless Chrome, and leaves a
 clean, scored demo.
 
+The frontend opens on a sign-in page with three portals: an **NGO portal** (submit proposals,
+report milestones), a **company CSR portal** (find projects, fund them, follow their impact) and
+the **review console** (decide flagged proposals, verify evidence, run the safeguards). The demo
+accounts have no passwords and the API has no authentication, so run it only on your own machine.
+
 The frontend looks for the API when it starts. If it answers, every number comes
 from Postgres. If it does not, the frontend falls back to an in-browser copy of
-the database rules, and the sidebar says which one you are looking at.
+the database rules, and the sidebar says *Offline demo data* instead of *Connected*.
 
 Postgres listens on **localhost:5433** (5433, not 5432, to avoid colliding with
 a local install).
@@ -175,9 +180,9 @@ Built and verified:
   model output into the database; an end-to-end test runs it against a throwaway database
 - GitHub Actions CI (`.github/workflows/ci.yml`): the database, API and ML tests against a real
   pgvector Postgres, and the frontend's tests and build, on every push
-- Live submission: an NGO submits a proposal on the Projects page and the models score it in a few
-  seconds; a reviewer approves or rejects what the grade flagged; a company writes a new rulebook on
-  the Matching page. The first submission after `make api` also loads the models. The in-browser demo
+- Live submission: an NGO submits a proposal in its portal and the models score it in a few
+  seconds; a reviewer approves or rejects what the grade flagged; a company edits its funding
+  criteria on Find projects. The first submission after `make api` also loads the models. The in-browser demo
   can review, but scoring and embedding need the API, where the Python models run.
 
 Still to do:

@@ -40,7 +40,7 @@ PROPOSAL = {
         "raise it from 41% to 55% within 12 months. We request Rs 12 lakh."),
 }
 # Words that mean a page rendered a broken value.
-BROKEN = ("NaN", "undefined", "[object Object]", "from null", "Lost contact with the API")
+BROKEN = ("NaN", "undefined", "[object Object]", "from null", "Cannot reach the server")
 
 results: list[tuple[str, bool, str]] = []
 
@@ -178,14 +178,22 @@ def workflow(c: httpx.Client) -> dict:
 
 # --------------------------------------------------------------------- pages
 
+# (screenshot name, path, text the page must show). The sign-in page has no live indicator.
 PAGES = [
-    ("exchange", "/", ["Where every proposal stands"]),
-    ("projects-scored", "/projects/2", ["What the proposal says and what the model read", "Overall score"]),
-    ("projects-review", "/projects/7", ["Your decision"]),
-    ("matching", "/matching", ["Write a new rulebook"]),
-    ("funds", "/funds", ["No milestone proof, no release."]),
-    ("impact", "/impact", ["What the funded work has delivered"]),
-    ("safeguards", "/safeguards", ["The database says no"]),
+    ("signin", "/", ["Sign in", "Company CSR team", "Exchange reviewer"]),
+    ("ngo-home", "/ngo/1", ["My projects", "Needs you now"]),
+    ("ngo-new", "/ngo/1/new", ["New proposal", "What gets a proposal approved"]),
+    ("ngo-project", "/ngo/1/projects/1", ["Your proposal", "Submit evidence"]),
+    ("company-overview", "/company/1", ["Overview", "Your projects"]),
+    ("company-find", "/company/2/find", ["Find projects", "Your criteria"]),
+    ("company-funding", "/company/2/funding", ["Funding", "Ledger", "Terminated"]),
+    ("company-impact", "/company/1/impact", ["Impact", "NGO leaderboard"]),
+    ("company-project", "/company/1/projects/2", ["Expected impact", "Overall score"]),
+    ("review-queue", "/review", ["Review queue", "Proposals to decide"]),
+    ("review-projects", "/review/projects", ["All projects"]),
+    ("review-decision", "/review/projects/7", ["Your decision", "Spending check"]),
+    ("review-milestones", "/review/milestones", ["Milestones", "Ledger"]),
+    ("review-safeguards", "/review/safeguards", ["Safeguards", "Race two sessions"]),
 ]
 
 
@@ -201,10 +209,10 @@ def render(name: str, path: str) -> str:
 
 def pages(seen: dict) -> None:
     print("\nEvery page, rendered in Chrome")
-    todo = [*PAGES, ("projects-new", f"/projects/{seen.get('new_project')}", [PROPOSAL["title"]])]
-    for name, path, must in todo:
+    new = ("ngo-new-project", f"/ngo/{PROPOSAL['ngoId']}/projects/{seen.get('new_project')}", [PROPOSAL["title"]])
+    for name, path, must in [*PAGES, new]:
         dom = render(name, path)
-        missing = [m for m in ["Live database", *must] if m not in dom]
+        missing = [m for m in [*(["Connected"] if path != "/" else []), *must] if m not in dom]
         broken = [b for b in BROKEN if b in dom]
         check(f"{path} renders with live data", not missing and not broken,
               f"missing {missing}" if missing else f"shows {broken}")
