@@ -1,4 +1,4 @@
-import { useMemo, useState, type FormEvent } from 'react'
+import { useEffect, useMemo, useState, type FormEvent } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { Brand } from '../components/PortalShell'
 import { useExchange, useQuery } from '../data/store'
@@ -15,6 +15,7 @@ export function SignIn() {
   const [ngoId, setNgoId] = useState('')
   const [companyId, setCompanyId] = useState('')
   const go = (path: string) => (e: FormEvent) => { e.preventDefault(); navigate(path) }
+  useEffect(() => { document.title = 'Sign in – CSR Exchange' }, [])
 
   return (
     <div className="signin">

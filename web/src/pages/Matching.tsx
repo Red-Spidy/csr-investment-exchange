@@ -6,6 +6,7 @@ import { MATCH_WEIGHTS, type MatchRow } from '../data/engine'
 import { usePortal } from '../data/portal'
 import { useExchange, useQuery } from '../data/store'
 import { shortTitle } from '../lib/bands'
+import { plainReason } from '../lib/reasons'
 import { fixed, inr, inrCompact } from '../lib/format'
 import { sdgName, sectorLabel } from '../lib/labels'
 
@@ -168,7 +169,7 @@ export function Matching() {
                   </th>
                   <td>
                     <ul className="plain">
-                      {e.reasons.map(r => <li key={r}>{r}</li>)}
+                      {e.reasons.map(r => <li key={r}>{plainReason(r)}</li>)}
                     </ul>
                     {e.status !== 'approved' && <StatusPill status={e.status} />}
                   </td>

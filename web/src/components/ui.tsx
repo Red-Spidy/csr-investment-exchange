@@ -82,7 +82,9 @@ export function Loading({ page, children }: { page?: string; children: ReactNode
   )
 }
 
-export function StatusPill({ status }: { status: ProjectStatus }) {
+/** `held`: the project is funded and a milestone failed. The database flags it; to people it is a held payment. */
+export function StatusPill({ status, held }: { status: ProjectStatus; held?: boolean }) {
+  if (held && status === 'flagged') return <span className="pill" data-tone="madder">Payment held</span>
   return <span className="pill" data-tone={STATUS_TONE[status]}>{STATUS_LABEL[status]}</span>
 }
 

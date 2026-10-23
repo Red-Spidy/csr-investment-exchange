@@ -65,6 +65,10 @@ export function PortalShell({ portal, title, who, links }: {
   }, [portal.companyId, companyId, setCompanyId])
   const ready = portal.companyId === null || portal.companyId === companyId
 
+  // One tab per party in a demo, so each tab is named after who is signed in.
+  const tab = portal.role !== 'review' && typeof who === 'string' ? who : title
+  useEffect(() => { document.title = `${tab} – CSR Exchange` }, [tab])
+
   return (
     <PortalProvider value={portal}>
       <div className="shell" data-role={portal.role}>

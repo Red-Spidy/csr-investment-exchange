@@ -115,6 +115,7 @@ h3 { font-size: 0.98rem; }
 .decision__actions { display: flex; flex-wrap: wrap; gap: 0.5rem; }
 
 .subhead { margin-top: 1.6rem; font-size: 0.95rem; }
+.reviewed { margin-top: 0.6rem; }
 .extract { margin-top: 0.8rem; }
 .proposal { font-size: 0.95rem; }
 .score__num { font-size: 2.2rem; }

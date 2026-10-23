@@ -66,7 +66,7 @@ export function Projects() {
                   <td>{sectorLabel(r.sector)}</td>
                   <td className="r num">{inrCompact(r.requestedAmount)}</td>
                   <td><Grade grade={r.grade} /></td>
-                  <td><StatusPill status={r.status} /></td>
+                  <td><StatusPill status={r.status} held={r.heldAmount > 0} /></td>
                   <td className="r num">{r.commitmentId ? inrCompact(r.committedAmount) : <span className="faint">None</span>}</td>
                 </tr>
               ))}
@@ -126,8 +126,11 @@ function ProjectView({ d }: { d: ProjectDetail }) {
   const target = x?.targetMetric
   // A forecast in "share of the claim" units cannot be held against a promise in points.
   const promised = ip?.metricUnit === 'normalised_0_1' ? null : promisedChange(target)
+  // A failed milestone flags a funded project too; that is a held payment, not a proposal in review.
+  const heldPhase = commitment?.commitment.status === 'active' ? commitment.phases.find(ph => ph.status === 'held') : undefined
+  const inReview = p.status === 'flagged' && !commitment
   // An NGO is told what to fix in its proposal, not how its spending was screened.
-  const signals = flagSignals(d).filter(s => role !== 'ngo' || !s.fraud)
+  const signals = (heldPhase ? [] : flagSignals(d)).filter(s => role !== 'ngo' || !s.fraud)
   const seesScores = role !== 'ngo'
   const seesFunding = commitment && (role !== 'company' || commitment.commitment.companyId === companyId)
 
@@ -143,10 +146,16 @@ function ProjectView({ d }: { d: ProjectDetail }) {
       <div className="detail__grid">
         <div className="detail__main">
           {signals.length > 0 && (
-            <Section id="why-flagged" title={role === 'ngo' ? 'What the reviewer is checking' : 'Why it is in review'}>
+            <Section id="why-flagged"
+              title={!inReview ? 'Why the scoring held it back' : role === 'ngo' ? 'What the reviewer is checking' : 'Why it is in review'}>
               <ul className="signals">
                 {signals.map(s => <li key={s.text}>{s.text}</li>)}
               </ul>
+              {!inReview && (
+                <p className="small muted reviewed">
+                  {p.status === 'rejected' ? 'A reviewer checked it and rejected it.' : 'A reviewer checked it and approved it.'}
+                </p>
+              )}
             </Section>
           )}
 
@@ -262,10 +271,14 @@ function ProjectView({ d }: { d: ProjectDetail }) {
         <aside className="detail__side" aria-label="Summary">
           <div className="side-card">
             <div className="side-card__top">
-              <StatusPill status={p.status} />
+              <StatusPill status={p.status} held={!!heldPhase} />
               {rg && <Grade grade={rg.grade} />}
             </div>
-            <p className="small muted">{NEXT_STEP[p.status]}</p>
+            <p className="small muted">
+              {heldPhase
+                ? `Phase ${heldPhase.phaseNo} failed verification, so its payment is held. ${commitment!.companyName} decides whether to end the funding.`
+                : NEXT_STEP[p.status]}
+            </p>
             <dl className="side-facts">
               <div><dt>Requested</dt><dd className="num">{inr(p.requestedAmount)}</dd></div>
               <div><dt>Duration</dt><dd>{p.durationMonths} months</dd></div>
@@ -357,7 +370,7 @@ function flagSignals(d: ProjectDetail): { text: string; fraud?: boolean }[] {
   if (!d.extraction?.targetMetric) out.push({ text: 'The proposal states no measurable target.' })
   if (d.prediction && d.prediction.impactNorm < 0.4) out.push({ text: `Expected impact is low (${d.prediction.impactNorm.toFixed(2)} on a 0 to 1 scale).` })
   if (d.risk && d.risk.sdgConfidence < 0.8) out.push({ text: `It is unclear which development goal this serves (confidence ${d.risk.sdgConfidence.toFixed(2)}).` })
-  if (d.risk) out.push({ text: `Overall score ${d.risk.compositeScore.toFixed(2)}, grade ${d.risk.grade}.`, fraud: true })
+  if (d.risk) out.push({ text: `Overall score ${d.risk.compositeScore.toFixed(3)}, grade ${d.risk.grade}.`, fraud: true })
   return out
 }
 
@@ -425,7 +438,7 @@ function ScoreCard({ rg }: { rg: NonNullable<ProjectDetail['risk']> }) {
       <div className="score__verdict">
         <Grade grade={rg.grade} large />
         <div>
-          <p className="score__num display">{rg.compositeScore.toFixed(2)}</p>
+          <p className="score__num display">{rg.compositeScore.toFixed(3)}</p>
           <p className="muted small">Scoring decision: {STATUS_LABEL[rg.decision].toLowerCase()}</p>
         </div>
       </div>

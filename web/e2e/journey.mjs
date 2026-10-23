@@ -85,6 +85,8 @@ await step('an NGO signs in by choosing its organisation', async () => {
   await ngo.locator('form.account').first().getByRole('button', { name: 'Continue' }).click()
   await ngo.waitForURL(/\/ngo\/2$/)
   await see(ngo, 'My projects'); await see(ngo, 'Gramin Shiksha Trust')
+  const title = await ngo.title()
+  if (!title.startsWith('Gramin Shiksha Trust')) throw new Error(`tab title is "${title}"`)
 })
 await step('a company signs in', async () => {
   await company.goto(WEB)
@@ -177,6 +179,9 @@ await step('the reviewer approves Maternal health outreach with a note', async (
   await review.getByRole('button', { name: 'Approve' }).click()
   await receipt(review, 'Project approved')
   await see(review, 'Companies can now find and fund this project')
+  await see(review, 'Why the scoring held it back')
+  await see(review, 'A reviewer checked it and approved it')
+  await absent(review, 'Why it is in review')
   await review.snap('approved')
 })
 await step('a decided project leaves the queue', async () => {
@@ -206,6 +211,8 @@ await step('Find projects ranks the newly approved project', async () => {
   await see(company, 'Your criteria')
   await see(company, 'Maternal health outreach')
   await see(company, 'Not eligible')
+  await see(company, 'Not approved yet: it is with the reviewer')
+  await absent(company, 'Status is ')
   await company.snap('find')
 })
 await step('the company commits the requested amount in one step', async () => {
@@ -285,9 +292,16 @@ await step('phase 2 evidence is submitted and the reviewer fails it', async () =
   await receipt(review, 'Phase 2 failed')
   await card.getByText('Held').first().waitFor()
 })
-await step('the NGO is told its payment is held', async () => {
+await step('the NGO is told its payment is held, not that it is in review', async () => {
   await ngo2.goto(`${WEB}/ngo/3`)
   await see(ngo2, 'Phase 2 failed verification')
+  await see(ngo2, 'Payment held')
+  await ngo2.goto(`${WEB}/ngo/3/projects/3`)
+  await see(ngo2, 'its payment is held')
+  await absent(ngo2, 'In review'); await absent(ngo2, 'before it can be funded')
+  await review.goto(`${WEB}/review/projects`)
+  const row = review.locator('tr', { hasText: 'Maternal health outreach' })
+  await row.getByText('Payment held').waitFor()
 })
 await step('the company ends the commitment and gets the unreleased money back', async () => {
   await company.goto(`${WEB}/company/2/funding`)

@@ -124,7 +124,7 @@ export function Exchange() {
               ))}
             </ul>
           )}
-          <p className="feed__more"><Link to={to('/funding#ledger')} className="link-btn">Full ledger</Link></p>
+          {recent.length > 0 && <p className="feed__more"><Link to={to('/funding#ledger')} className="link-btn">Full ledger</Link></p>}
         </Section>
       </div>
 

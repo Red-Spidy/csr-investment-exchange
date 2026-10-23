@@ -108,7 +108,7 @@ export function NgoHome() {
                         {funded.find(c => c.project.id === r.projectId)?.companyName ?? (r.state ?? '')}
                       </span>
                     </th>
-                    <td><StatusPill status={r.status} /></td>
+                    <td><StatusPill status={r.status} held={r.heldAmount > 0} /></td>
                     <td className="r num">{inrCompact(r.requestedAmount)}</td>
                     <td className="r num">{r.commitmentId ? inrCompact(r.releasedAmount) : <span className="faint">None</span>}</td>
                     <td className="small">{nextStep(r.projectId, r.status)}</td>
