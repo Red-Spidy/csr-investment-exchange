@@ -4,6 +4,7 @@ import type { ActionResult, ExchangeApi } from '../data/api'
 import { ALL_GUARDS, type Guards, type RaceResult } from '../data/engine'
 import { useExchange } from '../data/store'
 import { inr } from '../lib/format'
+import { overBudget } from '../lib/attempts'
 
 const LAYERS: { key: keyof Guards; name: string; where: string; what: string }[] = [
   { key: 'statusCheck', name: 'Layer 1', where: 'Inside fn_commit_funds',
@@ -150,8 +151,8 @@ const ATTEMPTS: Attempt[] = [
     detail: 'Kalpataru Motors tries to fund the Barmer attendance project that Meridian already funds.',
     run: api => api.commitFunds({ companyId: 2, projectId: 1 }) },
   { id: 'over', title: 'Commit more than the mandated budget',
-    detail: 'Sundar Textiles, with ₹24 lakh to spend, tries to commit ₹28 lakh.',
-    run: api => api.commitFunds({ companyId: 3, projectId: 5 }) },
+    detail: 'Sundar Textiles tries to commit ₹4 lakh more than it has left of its mandated CSR budget.',
+    run: api => overBudget(api) },
   { id: 'update', title: 'Edit a row in the ledger',
     detail: 'Change the amount on ledger row 2, the first release.',
     run: api => api.tryLedgerMutation('UPDATE', 2) },

@@ -141,7 +141,9 @@ function ProjectView({ d }: { d: ProjectDetail }) {
           <dl className="extract">
             <div>
               <dt>Goals</dt>
-              <dd><ul className="plain">{x.goals.map(g => <li key={g}>{g}</li>)}</ul></dd>
+              <dd>{x.goals.length
+                ? <ul className="plain">{x.goals.map(g => <li key={g}>{g}</li>)}</ul>
+                : <span className="bad">None stated</span>}</dd>
             </div>
             <div>
               <dt>Measurable target</dt>
@@ -168,7 +170,8 @@ function ProjectView({ d }: { d: ProjectDetail }) {
             </div>
             <div>
               <dt>Where</dt>
-              <dd>{[x.geography?.district, x.geography?.state].filter(Boolean).join(', ')}{x.geography?.ruralUrban ? `, ${x.geography.ruralUrban}` : ''}</dd>
+              <dd>{[x.geography?.district, x.geography?.state].filter(Boolean).join(', ')
+                || <span className="faint">Not stated</span>}{x.geography?.ruralUrban ? `, ${x.geography.ruralUrban}` : ''}</dd>
             </div>
             <div>
               <dt>Goals it serves</dt>
@@ -434,8 +437,8 @@ function ScoreCard({ rg }: { rg: NonNullable<ProjectDetail['risk']> }) {
         <ScoreStack segments={parts} total={recomputed} caption="How the four inputs add up to the overall score" />
         {drift && (
           <p className="note small">
-            These weights give {recomputed.toFixed(2)}, not the stored {rg.compositeScore.toFixed(2)}. The stored score is a
-            placeholder from the seed file until the risk model is retrained.
+            These weights give {recomputed.toFixed(2)}, not the stored {rg.compositeScore.toFixed(2)}. The stored score is the
+            seed file's hand-written placeholder; make score, or Reset database on a live API, replaces it with the real grade.
           </p>
         )}
       </div>
