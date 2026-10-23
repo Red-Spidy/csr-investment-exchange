@@ -18,10 +18,8 @@ const LAYERS: { key: keyof Guards; name: string; where: string; what: string }[]
 export function Safeguards() {
   return (
     <>
-      <PageHead
-        title="The database says no, so the app does not have to."
-        lead="Each of these is a way to misuse the money, and each is stopped inside Postgres. None of the defences live in the interface. Run them and read the answers."
-      />
+      <PageHead title="Safeguards"
+        lead="Ways to misuse the money, each refused by the database itself rather than by this interface. Run them to check." />
       <Race />
       <Refusals />
     </>

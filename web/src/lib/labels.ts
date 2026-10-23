@@ -24,13 +24,13 @@ export const SECTOR_LABEL: Record<string, string> = {
 export const sectorLabel = (s: string) => SECTOR_LABEL[s] ?? s
 
 export const STATUS_LABEL: Record<ProjectStatus, string> = {
-  pending: 'Pending',
+  pending: 'Submitted',
   scoring: 'Scoring',
   approved: 'Approved',
-  flagged: 'Flagged',
+  flagged: 'In review',
   rejected: 'Rejected',
   matched: 'Matched',
-  active: 'Funded and active',
+  active: 'Funded',
   closed: 'Closed',
   terminated: 'Terminated',
 }

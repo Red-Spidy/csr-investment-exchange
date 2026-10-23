@@ -1,28 +1,23 @@
 import { useMemo } from 'react'
 import { Link } from 'react-router-dom'
 import { Cloth, ClothLegend, type Band, type Tone } from '../components/Cloth'
-import { PageHead, Pill, Section, Loading } from '../components/ui'
+import { Kpis, Loading, PageHead, Pill, Section, TableScroll } from '../components/ui'
+import { usePortal } from '../data/portal'
 import { useExchange, useQuery } from '../data/store'
-import type { ProjectStatus } from '../data/types'
-import { commitmentBands, shortCompany, shortTitle, sumByTone } from '../lib/bands'
+import { commitmentBands, shortTitle, sumByTone } from '../lib/bands'
 import { inrCompact, pct, timeShort } from '../lib/format'
 import { TXN_LABEL, TXN_TONE } from '../lib/labels'
+import { openMilestone } from '../lib/milestones'
 
-const STAGES: { title: string; hint: string; statuses: ProjectStatus[] }[] = [
-  { title: 'Being scored', hint: 'Proposal read, impact and fraud scored', statuses: ['pending', 'scoring'] },
-  { title: 'Approved', hint: 'Cleared to be matched with a company', statuses: ['approved'] },
-  { title: 'Funded', hint: 'Money locked, phases releasing', statuses: ['matched', 'active'] },
-  { title: 'Closed', hint: 'Every phase released, or ended early', statuses: ['closed', 'terminated'] },
-]
-
+/** The company's overview: its CSR budget as cloth, what needs a decision, and its projects. */
 export function Exchange() {
   const { companyId } = useExchange()
+  const { to } = usePortal()
   const { data: companies } = useQuery(api => api.companies())
   const { data: commitments } = useQuery(api => api.commitments())
-  const { data: scorecard } = useQuery(api => api.scorecard())
   const { data: ledger } = useQuery(api => api.ledger())
   const { data: rulebooks } = useQuery(api => api.rulebooks())
-  const rulebook = rulebooks?.find(r => r.companyId === companyId)
+  const rulebook = rulebooks?.filter(r => r.companyId === companyId).sort((a, b) => b.id - a.id)[0]
   const { data: report } = useQuery(
     api => (rulebook ? api.matches(rulebook.id) : Promise.resolve(undefined)), [rulebook?.id])
 
@@ -40,144 +35,88 @@ export function Exchange() {
     return { bands: all, totals: sumByTone(all), remaining: left }
   }, [mine, company])
 
-  if (!company || !commitments || !scorecard || !ledger || !rulebooks || (rulebook && !report)) return <Loading page="Exchange">Loading the exchange</Loading>
+  if (!company || !commitments || !ledger || !rulebooks || (rulebook && !report)) return <Loading page="Overview">Loading your overview</Loading>
 
-  const name = shortCompany(company.name)
   const open = mine.filter(c => c.commitment.status === 'active')
-  const awaiting = open.flatMap(c => c.milestones.map(m => ({ c, m }))).filter(x => x.m.verification === 'submitted')
   const held = open.flatMap(c => c.phases.map(p => ({ c, p }))).filter(x => x.p.status === 'held')
-  const topMatch = report?.ranked[0]
+  const matches = report?.ranked.slice(0, 2) ?? []
   const mineIds = new Set(mine.map(c => c.commitment.id))
-  const recent = [...(ledger ?? [])].filter(l => mineIds.has(l.commitmentId)).reverse().slice(0, 5)
-  const stageProjects = (statuses: ProjectStatus[]) => (scorecard ?? []).filter(p => statuses.includes(p.status))
-  // A funded project is flagged when a milestone fails; that shows under "needs next" instead.
-  const flagged = (scorecard ?? []).filter(p => p.status === 'flagged' && p.commitmentId === null)
+  const recent = [...ledger].filter(l => mineIds.has(l.commitmentId)).reverse().slice(0, 6)
 
   const legend: { tone: Tone; value?: string }[] = (['released', 'review', 'locked', 'held', 'free'] as Tone[])
     .filter(t => totals[t] > 0)
     .map(t => ({ tone: t, value: inrCompact(totals[t]) }))
 
+  const progress = (id: number) => {
+    const v = mine.find(c => c.commitment.id === id)!
+    if (v.commitment.status === 'completed') return 'Completed'
+    if (v.commitment.status === 'cancelled') return 'Ended early'
+    if (v.phases.some(p => p.status === 'held')) return 'Payment held'
+    if (v.milestones.some(m => m.verification === 'submitted')) return 'Evidence with the reviewer'
+    const m = openMilestone(v)
+    return m ? `Phase ${m.phaseNo} in progress` : 'In progress'
+  }
+
   return (
     <>
-      <PageHead
-        title={remaining > 0
-          ? `${inrCompact(remaining)} of ${name}'s CSR budget is still unplaced.`
-          : `All of ${name}'s CSR budget is placed.`}
-        lead={`The ${company.fy} mandate is ${inrCompact(company.mandatedBudget)}, which is ${pct(company.mandatedBudget / company.avgNetProfit)} of ${inrCompact(company.avgNetProfit)} average net profit, as Section 135 requires.`}
-      />
+      <PageHead title="Overview"
+        lead={`Your ${company.fy} CSR budget: ${pct(company.mandatedBudget / company.avgNetProfit)} of ${inrCompact(company.avgNetProfit)} average net profit, as Section 135 requires.`}>
+        <Link to={to('/find')} className="btn btn--turmeric">Find projects</Link>
+      </PageHead>
 
-      <div className="hero-cloth">
-        <Cloth bands={bands} height={96} animate key={`${companyId}`}
+      <section className="budget" aria-labelledby="budget-h">
+        <h2 id="budget-h" className="sr-only">CSR budget</h2>
+        <Kpis items={[
+          { label: 'CSR budget', value: inrCompact(company.mandatedBudget) },
+          { label: 'Released to NGOs', value: inrCompact(totals.released) },
+          { label: 'Committed, not yet released', value: inrCompact(totals.locked + totals.review + totals.held) },
+          { label: 'Unplaced', value: inrCompact(remaining), tone: remaining > 0 ? 'turmeric' : undefined },
+        ]} />
+        <Cloth bands={bands} height={72} animate key={`${companyId}`}
           label={`${company.name} CSR budget by state: ${legend.map(l => `${l.tone} ${l.value}`).join(', ')}`} />
         <ClothLegend items={legend} />
-      </div>
-
-      <Section id="pipeline" title="Where every proposal stands"
-        hint="A proposal is read, scored, approved, matched, then funded in phases. Nothing skips a stage.">
-        <div className="pipeline">
-          {STAGES.map((stage, i) => {
-            const items = stageProjects(stage.statuses)
-            return (
-              <div key={stage.title} className="stage" data-empty={items.length === 0 || undefined}>
-                <div className="stage__head">
-                  <span className="stage__count" aria-hidden="true">{items.length}</span>
-                  <div>
-                    <h3>{stage.title}</h3>
-                    <p className="small faint">{stage.hint}</p>
-                  </div>
-                </div>
-                {items.length === 0 ? (
-                  <p className="stage__none small faint">{i === 0 ? 'Nothing waiting to be scored.' : 'Nothing here yet.'}</p>
-                ) : (
-                  <ul className="stage__list">
-                    {items.map(p => (
-                      <li key={p.projectId}>
-                        <Link to={`/projects/${p.projectId}`} className="chip">
-                          <span className="chip__title">{shortTitle(p.title)}</span>
-                          <span className="chip__meta">{p.ngoName}, {inrCompact(p.requestedAmount)}</span>
-                        </Link>
-                      </li>
-                    ))}
-                  </ul>
-                )}
-              </div>
-            )
-          })}
-        </div>
-
-        {flagged.length > 0 && (
-          <div className="held-back">
-            <h3>Held back for review</h3>
-            <p className="small muted">These were scored but not cleared. They cannot be matched or funded.</p>
-            <ul className="held-back__list">
-              {flagged.map(p => (
-                <li key={p.projectId}>
-                  <Link to={`/projects/${p.projectId}`} className="chip chip--flag">
-                    <span className="chip__title">{shortTitle(p.title)}</span>
-                    <span className="chip__meta">Grade {p.grade}, {p.ngoName}</span>
-                  </Link>
-                </li>
-              ))}
-            </ul>
-          </div>
-        )}
-      </Section>
+      </section>
 
       <div className="two-up">
-        <Section id="attention" title={`What needs ${name} next`}>
+        <Section id="attention" title="Needs you now">
           <ul className="todo">
-            {awaiting.map(({ c, m }) => (
-              <li key={m.id}>
-                <div>
-                  <strong>Phase {m.phaseNo} evidence is in</strong>
-                  <p className="muted small">{shortTitle(c.project.title)}. A reviewer has to verify or fail it before any money moves.</p>
-                </div>
-                <Link className="btn btn--small" to="/funds">Review</Link>
-              </li>
-            ))}
             {held.map(({ c, p }) => (
               <li key={`h${p.id}`}>
                 <div>
-                  <strong>Phase {p.phaseNo} is held</strong>
-                  <p className="muted small">{shortTitle(c.project.title)}. {inrCompact(p.amount)} stays locked. Ending the commitment returns the unreleased money to {name}.</p>
+                  <strong>Phase {p.phaseNo} failed verification</strong>
+                  <p className="muted small">{shortTitle(c.project.title)}: {inrCompact(p.amount)} is held. Decide whether to end the commitment and get the unreleased money back.</p>
                 </div>
-                <Link className="btn btn--small btn--quiet" to="/funds">Decide</Link>
+                <Link className="btn btn--small btn--quiet" to={to('/funding')}>Decide</Link>
               </li>
             ))}
-            {topMatch && (
-              <li>
+            {matches.map(m => (
+              <li key={m.projectId}>
                 <div>
-                  <strong>{shortTitle(topMatch.title)} fits your rulebook</strong>
-                  <p className="muted small">
-                    Match score {topMatch.matchScore.toFixed(2)} for {inrCompact(topMatch.requestedAmount)} from {topMatch.ngoName}.
-                  </p>
+                  <strong>{shortTitle(m.title)} fits your criteria</strong>
+                  <p className="muted small">{m.ngoName}, {m.state}. Asks for {inrCompact(m.requestedAmount)}; fit {m.matchScore.toFixed(2)}.</p>
                 </div>
-                <Link className="btn btn--small btn--turmeric" to="/matching">See match</Link>
+                <Link className="btn btn--small btn--turmeric" to={to('/find')}>Review match</Link>
               </li>
-            )}
-            {awaiting.length === 0 && held.length === 0 && !topMatch && (
+            ))}
+            {held.length === 0 && matches.length === 0 && (
               <li className="todo__empty">
-                <p className="muted">Nothing needs {name} right now. Approved proposals that fit its rulebook will show up here.</p>
+                <p className="muted">Nothing needs you right now. Approved projects that fit your criteria will show up here.</p>
               </li>
             )}
           </ul>
         </Section>
 
-        <Section id="latest" title="Latest ledger entries"
-          hint="The ledger only ever grows. Rows are never edited or deleted.">
+        <Section id="latest" title="Recent activity">
           {recent.length === 0 ? (
             <div className="empty">
               <h3>No money has moved yet</h3>
-              <p>Commit funds to an approved project and the first entry appears here.</p>
-              <Link className="btn btn--small" to="/matching">Find a project</Link>
+              <p>Fund an approved project and its first entry appears here.</p>
             </div>
           ) : (
             <ul className="feed">
               {recent.map(l => (
                 <li key={l.id}>
-                  <Pill tone={TXN_TONE[l.type]}>
-                    {TXN_LABEL[l.type]}
-                  </Pill>
+                  <Pill tone={TXN_TONE[l.type]}>{TXN_LABEL[l.type]}</Pill>
                   <span className="feed__note">{l.note}</span>
                   <strong className="num">{inrCompact(l.amount)}</strong>
                   <time className="faint small" dateTime={l.createdAt}>{timeShort(l.createdAt)}</time>
@@ -185,9 +124,46 @@ export function Exchange() {
               ))}
             </ul>
           )}
-          <p className="feed__more"><Link to="/funds#ledger" className="link-btn">Open the full ledger</Link></p>
+          <p className="feed__more"><Link to={to('/funding#ledger')} className="link-btn">Full ledger</Link></p>
         </Section>
       </div>
+
+      <Section id="portfolio" title="Your projects">
+        {mine.length === 0 ? (
+          <div className="empty">
+            <h3>You have not funded a project yet</h3>
+            <p>Approved projects are ranked against your criteria on Find projects.</p>
+            <Link className="btn btn--small btn--turmeric" to={to('/find')}>Find projects</Link>
+          </div>
+        ) : (
+          <TableScroll label="Your projects">
+            <table className="table register">
+              <thead>
+                <tr>
+                  <th scope="col">Project</th><th scope="col" className="r">Committed</th>
+                  <th scope="col" className="r">Released</th><th scope="col">Progress</th>
+                </tr>
+              </thead>
+              <tbody>
+                {mine.map(v => {
+                  const paid = v.phases.filter(p => p.status === 'released').reduce((t, p) => t + p.amount, 0)
+                  return (
+                    <tr key={v.commitment.id}>
+                      <th scope="row">
+                        <Link to={to(`/projects/${v.project.id}`)} className="register__title">{v.project.title}</Link>
+                        <span className="faint small">{v.ngoName}</span>
+                      </th>
+                      <td className="r num">{inrCompact(v.commitment.amount)}</td>
+                      <td className="r num">{inrCompact(paid)}</td>
+                      <td className="small">{progress(v.commitment.id)}</td>
+                    </tr>
+                  )
+                })}
+              </tbody>
+            </table>
+          </TableScroll>
+        )}
+      </Section>
     </>
   )
 }

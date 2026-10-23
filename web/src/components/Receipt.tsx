@@ -1,4 +1,5 @@
 import { useEffect } from 'react'
+import { usePortal } from '../data/portal'
 import { useExchange } from '../data/store'
 
 /**
@@ -7,6 +8,8 @@ import { useExchange } from '../data/store'
  */
 export function Receipt() {
   const { receipt, dismissReceipt } = useExchange()
+  // NGOs and companies get the outcome in plain words; the review console also sees which part of the database acted.
+  const technical = usePortal().role === 'review'
 
   useEffect(() => {
     if (!receipt) return
@@ -18,7 +21,7 @@ export function Receipt() {
   if (!receipt) return null
 
   return (
-    <aside className="receipt" data-ok={receipt.ok} aria-live="polite" aria-label="What the database did">
+    <aside className="receipt" data-ok={receipt.ok} aria-live="polite" aria-label="Result">
       <header className="receipt__head">
         <div className="receipt__title">
           <h3>{receipt.title}</h3>
@@ -37,16 +40,16 @@ export function Receipt() {
         <ol className="receipt__list">
           {receipt.effects.map((e, i) => (
             <li key={i}>
-              <span className="receipt__by">{e.by}</span>
+              {technical && <span className="receipt__by">{e.by}</span>}
               <span>{e.text}</span>
             </li>
           ))}
         </ol>
       ) : (
         <div className="receipt__error">
-          <p className="code">ERROR: {receipt.error}</p>
+          <p className={technical ? 'code' : undefined}>{technical ? `ERROR: ${receipt.error}` : receipt.error}</p>
           {receipt.kind === 'sql' && (
-            <p className="small">The whole operation was rolled back. No rows changed.</p>
+            <p className="small">{technical ? 'The whole operation was rolled back. No rows changed.' : 'Nothing was changed.'}</p>
           )}
         </div>
       )}

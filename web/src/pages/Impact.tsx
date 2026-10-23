@@ -1,9 +1,10 @@
 import { useMemo, useState, type KeyboardEvent } from 'react'
 import { Link } from 'react-router-dom'
-import { PageHead, Pill, Section, Sql, TableScroll, Loading } from '../components/ui'
+import { HowItWorks, Kpis, PageHead, Pill, Section, Sql, TableScroll, Loading } from '../components/ui'
 import type { EsgRow } from '../data/engine'
+import { usePortal } from '../data/portal'
 import { useExchange, useQuery } from '../data/store'
-import { shortCompany, shortTitle } from '../lib/bands'
+import { shortCompany } from '../lib/bands'
 import { inrCompact, monthLabel, num } from '../lib/format'
 import { sectorLabel } from '../lib/labels'
 
@@ -20,41 +21,41 @@ DENSE_RANK() OVER (PARTITION BY sector
       ORDER BY total_impact / total_funded DESC)              AS sector_rank`
 
 export function Impact() {
-  const { companyId, act } = useExchange()
+  const { companyId } = useExchange()
+  const { to } = usePortal()
   const { data: companies } = useQuery(api => api.companies())
   const { data: timeline } = useQuery(api => api.esgTimeline())
   const { data: leaders } = useQuery(api => api.leaderboard())
-  const { data: commitments } = useQuery(api => api.commitments())
 
   const company = companies?.find(c => c.id === companyId)
   const rows = useMemo(() => (timeline ?? []).filter(r => r.companyId === companyId), [timeline, companyId])
-  const funded = (commitments ?? []).filter(c => c.commitment.companyId === companyId && c.commitment.status !== 'cancelled')
 
   const [picked, setPicked] = useState<string | null>(null)
   const active = rows.find(r => r.month === picked) ?? rows.at(-1)
 
-  const [projectId, setProjectId] = useState<number | null>(null)
-  const [value, setValue] = useState('')
-
-  if (!company || !timeline || !leaders || !commitments) return <Loading page="Impact">Loading impact</Loading>
+  if (!company || !timeline || !leaders) return <Loading page="Impact">Loading impact</Loading>
   const name = shortCompany(company.name)
-  const target = funded.find(f => f.project.id === projectId) ?? funded[0]
-  const lastValue = rows.at(-1)?.monthImpact
 
   const sorted = [...(leaders ?? [])].sort((a, b) => a.sector.localeCompare(b.sector) || a.sectorRank - b.sectorRank)
 
   return (
     <>
-      <PageHead
-        title="What the funded work has delivered, month by month."
-        lead="Every number here is computed inside Postgres by a window function, not in the app. Pick a month to see each one."
-      />
+      <PageHead title="Impact" lead="Progress your funded projects report each month. Pick a month to see its figures." />
+
+      {rows.length > 0 && (
+        <Kpis items={[
+          { label: 'Projects reporting', value: rows.at(-1)!.activeProjects },
+          { label: 'Total progress reported', value: num(rows.at(-1)!.cumulativeImpact, 1) },
+          { label: '3-month average', value: num(rows.at(-1)!.rolling3mo, 2) },
+          { label: 'Months reported', value: rows.length },
+        ]} />
+      )}
 
       {rows.length === 0 ? (
         <div className="empty">
-          <h3>{name} has no progress to show yet</h3>
-          <p>Impact appears once a project it funds starts reporting. Fund one, then report its first month here.</p>
-          <Link to="/matching" className="btn btn--turmeric">Find a project to fund</Link>
+          <h3>No progress reported yet</h3>
+          <p>Impact appears once a project you fund files its first monthly report.</p>
+          <Link to={to('/find')} className="btn btn--turmeric">Find a project to fund</Link>
         </div>
       ) : (
         <div className="impact">
@@ -73,37 +74,9 @@ export function Impact() {
         </div>
       )}
 
-      {funded.length > 0 && (
-        <Section id="report" title="Report another month"
-          hint="This is what an NGO files each month. The chart and the readout above recompute straight away.">
-          <form className="inline-form" onSubmit={e => {
-            e.preventDefault()
-            const v = Number(value || (lastValue ? (lastValue * 1.1).toFixed(1) : '1'))
-            if (target && Number.isFinite(v)) act(`Report progress for ${shortTitle(target.project.title)}`, api => api.reportImpact(target.project.id, v))
-          }}>
-            {funded.length > 1 && (
-              <div className="field">
-                <label htmlFor="rp">Project</label>
-                <select id="rp" className="select" value={target?.project.id} onChange={e => setProjectId(Number(e.target.value))}>
-                  {funded.map(f => <option key={f.project.id} value={f.project.id}>{shortTitle(f.project.title)}</option>)}
-                </select>
-              </div>
-            )}
-            <div className="field">
-              <label htmlFor="rv">Progress this month</label>
-              <input id="rv" className="input" type="number" step="any" inputMode="decimal"
-                placeholder={lastValue ? (lastValue * 1.1).toFixed(1) : '1.0'} value={value}
-                onChange={e => setValue(e.target.value)} />
-            </div>
-            <button className="btn" type="submit">Report progress</button>
-          </form>
-        </Section>
-      )}
-
-      <Section id="leaders" title="Who turns money into impact"
-        hint="Impact reported for each ₹10 lakh funded, ranked within each sector. An NGO is ranked only once it has been funded.">
+      <Section id="leaders" title="NGO leaderboard" hint="Impact reported for each ₹10 lakh funded, ranked within each sector">
         <TableScroll label="NGO leaderboard rows">
-        <table className="table leaders">
+        <table className="table register leaders">
           <thead>
             <tr>
               <th scope="col">NGO</th><th scope="col">Sector</th><th scope="col" className="r">Projects</th>
@@ -126,10 +99,13 @@ export function Impact() {
         </TableScroll>
       </Section>
 
-      <details className="sql-disclosure">
-        <summary>Show the window functions</summary>
+      <HowItWorks>
+        <p>
+          Every figure on this page is computed inside Postgres by window functions over the NGOs' monthly reports,
+          each time the page loads. Nothing is stored or calculated in the app.
+        </p>
         <Sql label="db/migrations/005_views_windows.sql">{WINDOW_SQL}</Sql>
-      </details>
+      </HowItWorks>
     </>
   )
 }
@@ -149,29 +125,24 @@ function Readout({ row, name }: { row: EsgRow; name: string }) {
       <div>
         <dt>Reported this month</dt>
         <dd className="num">{num(row.monthImpact, 2)}</dd>
-        <dd className="code">SUM(metric_value) GROUP BY month</dd>
       </div>
       <div>
         <dt>Change from last month</dt>
         <dd className="num">{row.momDelta === null ? 'First month' : signed(row.momDelta)}</dd>
-        <dd className="code">month_impact - LAG(month_impact)</dd>
       </div>
       <div>
         <dt>3-month average</dt>
         <dd className="num">{num(row.rolling3mo, 2)}</dd>
-        <dd className="code">AVG() OVER (ROWS 2 PRECEDING)</dd>
       </div>
       <div>
         <dt>Running total</dt>
         <dd className="num">{num(row.cumulativeImpact, 2)}</dd>
-        <dd className="code">SUM() OVER (ROWS UNBOUNDED PRECEDING)</dd>
       </div>
       <div>
         <dt>Standing among companies</dt>
         <dd className={row.peersInMonth > 1 ? 'num' : 'readout__text'}>
           {row.peersInMonth > 1 ? `${ordinal(Math.round(row.peerPercentile * 100))} percentile` : 'Nobody to compare'}
         </dd>
-        <dd className="code">PERCENT_RANK() OVER (PARTITION BY month)</dd>
         {row.peersInMonth <= 1 && <dd className="faint small">Only {name} reported this month.</dd>}
       </div>
     </dl>

@@ -5,13 +5,41 @@ import { STATUS_LABEL } from '../lib/labels'
 
 // ---------------------------------------------------------------- page chrome
 
+/** Page title, one line of context, and the page's main actions on the right. */
 export function PageHead({ title, lead, children }: { title: ReactNode; lead?: ReactNode; children?: ReactNode }) {
   return (
     <header className="page-head">
-      <h1>{title}</h1>
-      {lead && <p className="lead">{lead}</p>}
-      {children}
+      <div className="page-head__text">
+        <h1>{title}</h1>
+        {lead && <p className="page-head__sub">{lead}</p>}
+      </div>
+      {children && <div className="page-head__actions">{children}</div>}
     </header>
+  )
+}
+
+/** Headline figures for a page: label above, value below. */
+export function Kpis({ items }: { items: { label: string; value: ReactNode; note?: ReactNode; tone?: 'madder' | 'neem' | 'turmeric' }[] }) {
+  return (
+    <dl className="kpis">
+      {items.map(k => (
+        <div key={k.label} className="kpi" data-tone={k.tone}>
+          <dt>{k.label}</dt>
+          <dd className="kpi__value num">{k.value}</dd>
+          {k.note && <dd className="kpi__note">{k.note}</dd>}
+        </div>
+      ))}
+    </dl>
+  )
+}
+
+/** Formulas, SQL and model details, folded away until someone asks. */
+export function HowItWorks({ title = 'How this works', children }: { title?: string; children: ReactNode }) {
+  return (
+    <details className="how">
+      <summary>{title}</summary>
+      <div className="how__body">{children}</div>
+    </details>
   )
 }
 

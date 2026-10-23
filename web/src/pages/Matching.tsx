@@ -1,10 +1,11 @@
 import { useState } from 'react'
 import { Link } from 'react-router-dom'
-import { PageHead, Pill, ScoreStack, Section, Sql, TableScroll, Loading } from '../components/ui'
+import { HowItWorks, PageHead, Pill, ScoreStack, Section, Sql, TableScroll, Loading } from '../components/ui'
 import type { Sector } from '../data/api'
 import { MATCH_WEIGHTS, type MatchRow } from '../data/engine'
+import { usePortal } from '../data/portal'
 import { useExchange, useQuery } from '../data/store'
-import { shortCompany, shortTitle } from '../lib/bands'
+import { shortTitle } from '../lib/bands'
 import { fixed, inr, inrCompact } from '../lib/format'
 import { sdgName, sectorLabel, STATUS_LABEL } from '../lib/labels'
 
@@ -24,6 +25,7 @@ ORDER BY match_score DESC`
 
 export function Matching() {
   const { companyId, act } = useExchange()
+  const { to } = usePortal()
   const { data: companies } = useQuery(api => api.companies())
   const { data: rulebooks } = useQuery(api => api.rulebooks())
   const company = companies?.find(c => c.id === companyId)
@@ -36,13 +38,12 @@ export function Matching() {
   const [done, setDone] = useState<{ title: string; amount: number } | null>(null)
   const [writing, setWriting] = useState(false)
 
-  if (!company || !rulebook || !report) return <Loading page="Matching">Loading the rulebook</Loading>
+  if (!company || !rulebook || !report) return <Loading page="Find projects">Loading matches</Loading>
 
-  const name = shortCompany(company.name)
   const remaining = company.mandatedBudget - company.committedBudget
 
   async function commit(m: MatchRow) {
-    const result = await act(`Commit ${inrCompact(m.requestedAmount)} to ${shortTitle(m.title)}`, api =>
+    const result = await act(`${inrCompact(m.requestedAmount)} committed to ${shortTitle(m.title)}`, api =>
       api.commitFunds({ companyId, projectId: m.projectId, amount: m.requestedAmount }))
     setConfirming(null)
     if (result.ok) setDone({ title: m.title, amount: m.requestedAmount })
@@ -50,20 +51,17 @@ export function Matching() {
 
   return (
     <>
-      <PageHead
-        title={`Which approved projects fit what ${name} asked for?`}
-        lead="The database compares the rulebook with every project. Hard limits remove some, then it ranks the rest by how close they are in meaning, how much impact they promise and how far their spending can be trusted."
-      >
+      <PageHead title="Find projects" lead="Approved projects ranked against your funding criteria.">
         <button className="btn btn--quiet" aria-expanded={writing} onClick={() => setWriting(v => !v)}>
-          {writing ? 'Close the form' : 'Write a new rulebook'}
+          {writing ? 'Cancel' : 'Edit criteria'}
         </button>
       </PageHead>
 
-      {writing && <RulebookForm companyId={companyId} name={name} onSaved={() => setWriting(false)} />}
+      {writing && <RulebookForm companyId={companyId} onSaved={() => setWriting(false)} />}
 
       <section className="rulebook" aria-labelledby="rb">
-        <h2 id="rb" className="sr-only">{name}'s rulebook</h2>
-        <blockquote className="rulebook__quote display">{rulebook.requirementText}</blockquote>
+        <h2 id="rb" className="rulebook__label">Your criteria</h2>
+        <blockquote className="rulebook__quote">{rulebook.requirementText}</blockquote>
         <dl className="facts facts--wide">
           <div><dt>Focus</dt><dd>{rulebook.focusAreas.map(sectorLabel).join(', ')}</dd></div>
           <div><dt>States</dt><dd>{rulebook.preferredStates.length ? rulebook.preferredStates.join(', ') : 'Any state'}</dd></div>
@@ -79,20 +77,20 @@ export function Matching() {
       {done && (
         <div className="banner" role="status">
           <div>
-            <strong>{inrCompact(done.amount)} is locked for {shortTitle(done.title)}.</strong>
-            <p className="small">The phases and their milestones now exist. Money moves only as each one is verified.</p>
+            <strong>{inrCompact(done.amount)} committed to {shortTitle(done.title)}.</strong>
+            <p className="small">Each phase is paid to the NGO once its milestone is verified.</p>
           </div>
-          <Link to="/funds" className="btn btn--small">See the phases</Link>
+          <Link to={to('/funding')} className="btn btn--small">View funding</Link>
           <button className="link-btn" onClick={() => setDone(null)}>Dismiss</button>
         </div>
       )}
 
-      <Section id="ranked" title={report?.ranked.length ? 'Best fits, in order' : 'No project fits yet'}
-        hint={`match score = ${MATCH_WEIGHTS.similarity.toFixed(2)} x similarity + ${MATCH_WEIGHTS.impact.toFixed(2)} x predicted impact + ${MATCH_WEIGHTS.trust.toFixed(2)} x (1 - fraud score)`}>
+      <Section id="ranked" title={report?.ranked.length ? `${report.ranked.length} ${report.ranked.length === 1 ? 'match' : 'matches'}` : 'No matches yet'}
+        hint="Best fit first">
         {report && report.ranked.length === 0 && (
           <div className="empty">
-            <h3>Nothing passes {name}'s limits</h3>
-            <p>Every project is either not approved or outside the budget, state or goals in the rulebook. The list below says why for each one.</p>
+            <h3>No approved project meets your criteria</h3>
+            <p>Every project is either not yet approved or outside your budget, states or goals. The list below says why for each.</p>
           </div>
         )}
         <ol className="matches">
@@ -102,43 +100,43 @@ export function Matching() {
               <div className="match__body">
                 <div className="match__top">
                   <div>
-                    <h3><Link to={`/projects/${m.projectId}`}>{m.title}</Link></h3>
+                    <h3><Link to={to(`/projects/${m.projectId}`)}>{m.title}</Link></h3>
                     <p className="muted small">{m.ngoName}, {m.state}. Asks for {inr(m.requestedAmount)}.</p>
                   </div>
-                  <p className="match__score display" aria-label={`Match score ${m.matchScore.toFixed(2)}`}>
+                  <p className="match__score display" aria-label={`Fit score ${m.matchScore.toFixed(2)}`}>
                     {m.matchScore.toFixed(2)}
                   </p>
                 </div>
 
                 <ScoreStack
-                  caption={`Match score ${m.matchScore.toFixed(2)} built from similarity, impact and trust`}
+                  caption={`Fit score ${m.matchScore.toFixed(2)} built from similarity, impact and trust`}
                   total={Math.max(0, m.matchScore)}
                   segments={[
-                    { key: 's', label: 'Closeness in meaning', value: m.contributions.similarity, tone: 'indigo', note: `${fixed(m.similarity, 2)} similar` },
-                    { key: 'i', label: 'Predicted impact', value: m.contributions.impact, tone: 'turmeric', note: `${m.impactNorm.toFixed(2)}` },
-                    { key: 't', label: 'Trust', value: m.contributions.trust, tone: 'neem', note: `fraud ${m.fraudScore.toFixed(2)}` },
+                    { key: 's', label: 'Fits your criteria', value: m.contributions.similarity, tone: 'indigo', note: `${fixed(m.similarity, 2)} similar` },
+                    { key: 'i', label: 'Expected impact', value: m.contributions.impact, tone: 'turmeric', note: `${m.impactNorm.toFixed(2)}` },
+                    { key: 't', label: 'Spending record', value: m.contributions.trust, tone: 'neem', note: `risk ${m.fraudScore.toFixed(2)}` },
                   ]}
                 />
 
                 {m.similarity < 0.3 && (
                   <p className="note small">
-                    This only passed the limits because it shares goal {m.sharedSdgs.join(' and ')}. Its text similarity is
-                    {' '}{fixed(m.similarity, 2)}, so it ranks low.
+                    Included only because it shares goal {m.sharedSdgs.join(' and ')} with your criteria. The description is a
+                    weak fit ({fixed(m.similarity, 2)}), so it ranks low.
                   </p>
                 )}
 
                 {confirming === m.projectId ? (
                   <div className="confirm" role="group" aria-label={`Confirm funding ${shortTitle(m.title)}`}>
                     <p>
-                      Lock <strong>{inr(m.requestedAmount)}</strong> for this project, split into the phases it asked for.
-                      {' '}{name}'s unplaced budget goes from {inrCompact(remaining)} to {inrCompact(remaining - m.requestedAmount)}.
-                      No phase is paid until its milestone is verified.
+                      Commit <strong>{inr(m.requestedAmount)}</strong> to this project, paid in the phases it asked for.
+                      Your unplaced budget goes from {inrCompact(remaining)} to {inrCompact(remaining - m.requestedAmount)}.
+                      Each phase is paid only after its milestone is verified.
                     </p>
                     {m.requestedAmount > remaining && (
-                      <p className="bad small">This is more than the budget left. The database will refuse it.</p>
+                      <p className="bad small">This is more than your remaining budget, so it will be refused.</p>
                     )}
                     <div className="confirm__actions">
-                      <button className="btn" onClick={() => commit(m)}>Lock {inrCompact(m.requestedAmount)}</button>
+                      <button className="btn btn--turmeric" onClick={() => commit(m)}>Commit {inrCompact(m.requestedAmount)}</button>
                       <button className="btn btn--quiet" onClick={() => setConfirming(null)}>Cancel</button>
                     </div>
                   </div>
@@ -147,7 +145,7 @@ export function Matching() {
                     <button className="btn btn--turmeric" onClick={() => setConfirming(m.projectId)}>
                       Fund this project
                     </button>
-                    <Link to={`/projects/${m.projectId}`} className="btn btn--quiet">Read the scorecard</Link>
+                    <Link to={to(`/projects/${m.projectId}`)} className="btn btn--quiet">View project</Link>
                   </div>
                 )}
               </div>
@@ -157,16 +155,15 @@ export function Matching() {
       </Section>
 
       {report && report.excluded.length > 0 && (
-        <Section id="excluded" title="Left out, and why"
-          hint="Every project that did not make the list, with the rule that removed it.">
+        <Section id="excluded" title="Not eligible" hint="Projects outside your criteria, and the reason for each">
           <TableScroll label="Left-out projects and their reasons">
-          <table className="table excluded">
-            <thead><tr><th scope="col">Project</th><th scope="col">Why it is out</th></tr></thead>
+          <table className="table register excluded">
+            <thead><tr><th scope="col">Project</th><th scope="col">Reason</th></tr></thead>
             <tbody>
               {report.excluded.map(e => (
                 <tr key={e.projectId}>
                   <th scope="row">
-                    <Link to={`/projects/${e.projectId}`}>{shortTitle(e.title)}</Link>
+                    <Link to={to(`/projects/${e.projectId}`)}>{shortTitle(e.title)}</Link>
                     <span className="faint small">{e.ngoName}, {inrCompact(e.requestedAmount)}</span>
                   </th>
                   <td>
@@ -183,10 +180,16 @@ export function Matching() {
         </Section>
       )}
 
-      <details className="sql-disclosure">
-        <summary>Show the SQL behind this ranking</summary>
+      <HowItWorks title="How projects are ranked">
+        <p>
+          Postgres filters out projects that are not approved or fall outside your budget, states or goals. It ranks the
+          rest by fit score = {MATCH_WEIGHTS.similarity.toFixed(2)} x how closely the proposal matches your criteria in meaning
+          (pgvector cosine similarity) + {MATCH_WEIGHTS.impact.toFixed(2)} x expected impact + {MATCH_WEIGHTS.trust.toFixed(2)} x
+          the NGO's spending record. Committing is one database transaction: the money is locked and the phases and
+          milestones are created together.
+        </p>
         <Sql label="db/migrations/005_views_windows.sql">{MATCH_SQL}</Sql>
-      </details>
+      </HowItWorks>
     </>
   )
 }
@@ -195,7 +198,7 @@ export function Matching() {
 
 const SECTORS: Sector[] = ['education', 'healthcare', 'water_sanitation', 'environment', 'livelihood']
 
-function RulebookForm({ companyId, name, onSaved }: { companyId: number; name: string; onSaved: () => void }) {
+function RulebookForm({ companyId, onSaved }: { companyId: number; onSaved: () => void }) {
   const { act, source } = useExchange()
   const [text, setText] = useState('')
   const [focus, setFocus] = useState<Sector[]>([])
@@ -208,21 +211,21 @@ function RulebookForm({ companyId, name, onSaved }: { companyId: number; name: s
   const badSdg = sdgList.some(n => !Number.isInteger(n) || n < 1 || n > 17)
 
   return (
-    <Section id="new-rulebook" title={`A new rulebook for ${name}`}
+    <Section id="new-rulebook" title="New funding criteria"
       hint={source === 'live'
-        ? 'Saved, then embedded with the same model as the projects, so the ranking below uses it straight away.'
-        : 'Embedding a rulebook needs the API, because the model runs in Python. Start it with make api.'}>
+        ? 'Your matches update as soon as you save.'
+        : 'Saving criteria needs the server, which is not reachable.'}>
       <form className="proposal-form" onSubmit={async e => {
         e.preventDefault()
         if (badSdg) return
-        const out = await act(`New rulebook for ${name}`, api => api.createRulebook({
+        const out = await act('Criteria saved', api => api.createRulebook({
           companyId, requirementText: text.trim(), focusAreas: focus, preferredStates: list(states),
           targetSdgs: sdgList, minBudget: Number(min) || 0, maxBudget: Number(max),
         }))
         if (out.ok) onSaved()
       }}>
         <div className="field proposal-form__text">
-          <label htmlFor="rb-text">What {name} wants to fund, in its own words</label>
+          <label htmlFor="rb-text">What you want to fund</label>
           <textarea id="rb-text" className="input" required minLength={10} maxLength={2000} rows={3}
             placeholder="e.g. Girls' secondary education in rural Bihar, with a clear attendance target."
             value={text} onChange={e => setText(e.target.value)} />
@@ -243,7 +246,7 @@ function RulebookForm({ companyId, name, onSaved }: { companyId: number; name: s
           <input id="rb-states" className="input" placeholder="Any state" value={states} onChange={e => setStates(e.target.value)} />
         </div>
         <div className="field">
-          <label htmlFor="rb-sdgs">Target SDGs, comma-separated</label>
+          <label htmlFor="rb-sdgs">Development goals (SDG numbers), comma-separated</label>
           <input id="rb-sdgs" className="input" placeholder="e.g. 4, 5" value={sdgs} aria-invalid={badSdg || undefined}
             onChange={e => setSdgs(e.target.value)} />
           {badSdg && <span className="bad small">SDGs are whole numbers from 1 to 17.</span>}
@@ -257,7 +260,7 @@ function RulebookForm({ companyId, name, onSaved }: { companyId: number; name: s
           <input id="rb-max" className="input" type="number" required min={1} step={10000} value={max} onChange={e => setMax(e.target.value)} />
         </div>
         <div className="proposal-form__actions">
-          <button className="btn" type="submit" disabled={badSdg}>Save and embed</button>
+          <button className="btn" type="submit" disabled={badSdg}>Save criteria</button>
         </div>
       </form>
     </Section>
