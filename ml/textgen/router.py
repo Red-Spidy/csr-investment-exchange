@@ -82,12 +82,14 @@ def _retry_after(response: httpx.Response) -> float | None:
 
 class Router:
     def __init__(self, providers: list[Provider], client: httpx.Client | None = None,
-                 clock=time.monotonic, sleep=time.sleep, max_wait: float = 120.0):
+                 clock=time.monotonic, sleep=time.sleep, max_wait: float = 120.0,
+                 temperature: float = TEMPERATURE):
         if not providers:
             raise ValueError("no providers configured: set GEMINI_API_KEY and/or GROQ_API_KEY")
         self.providers = list(providers)
         self.client = client or httpx.Client(timeout=REQUEST_TIMEOUT)
         self._clock, self._sleep, self.max_wait = clock, sleep, max_wait
+        self.temperature = temperature
         self._state = {p.name: _State() for p in self.providers}
         self._next = 0
 
@@ -121,7 +123,7 @@ class Router:
             response = self.client.post(
                 p.base_url + "chat/completions",
                 headers={"Authorization": f"Bearer {p.api_key}"},
-                json={"model": p.model, "temperature": TEMPERATURE,
+                json={"model": p.model, "temperature": self.temperature,
                       "messages": [{"role": "system", "content": system},
                                    {"role": "user", "content": user}]},
             )

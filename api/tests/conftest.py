@@ -16,6 +16,10 @@ from psycopg.conninfo import make_conninfo
 
 from app.admin import apply_schema, seed
 from app.main import create_app
+from app.rating import rule_rater
+
+# Progress updates are rated by the deterministic rules in tests, never by Gemini.
+RULES = rule_rater()
 
 ADMIN_URL = os.environ.get("TEST_ADMIN_URL", "postgresql://csr:csr@localhost:5433/postgres")
 TEMPLATE = "csr_api_template"
@@ -55,13 +59,13 @@ def fresh_db(template_db: str) -> Iterator[str]:
 
 @pytest.fixture
 def client(fresh_db: str) -> Iterator[TestClient]:
-    with TestClient(create_app(fresh_db, allow_reset=False)) as c:
+    with TestClient(create_app(fresh_db, allow_reset=False, rater=RULES)) as c:
         yield c
 
 
 @pytest.fixture
 def resettable_client(fresh_db: str) -> Iterator[TestClient]:
-    with TestClient(create_app(fresh_db, allow_reset=True)) as c:
+    with TestClient(create_app(fresh_db, allow_reset=True, rater=RULES)) as c:
         yield c
 
 
@@ -72,7 +76,7 @@ def seeded(template_db: str) -> Iterator[TestClient]:
     with psycopg.connect(ADMIN_URL, autocommit=True) as admin:
         admin.execute(f"CREATE DATABASE {name} TEMPLATE {template_db}")
         try:
-            with TestClient(create_app(_url(name), allow_reset=False)) as c:
+            with TestClient(create_app(_url(name), allow_reset=False, rater=RULES)) as c:
                 yield c
         finally:
             admin.execute(f"DROP DATABASE IF EXISTS {name} WITH (FORCE)")

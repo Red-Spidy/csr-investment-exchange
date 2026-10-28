@@ -194,10 +194,17 @@ UPDATE milestones
 
 -- Monthly progress feeding the window-function views. Each value is that month's gain in
 -- project 1's attendance rate, in percentage points: +6.90 so far against the +8 promised.
-INSERT INTO impact_reports (project_id, period_month, metric_value) VALUES
-  (1, DATE '2026-03-01', 1.20),
-  (1, DATE '2026-04-01', 0.85),
-  (1, DATE '2026-05-01', 1.05),
-  (1, DATE '2026-06-01', 1.30),
-  (1, DATE '2026-07-01', 1.20),
-  (1, DATE '2026-08-01', 1.30);
+-- Each comes with the NGO's own words; none is rated yet (make rate, or a new report).
+INSERT INTO impact_reports (project_id, period_month, metric_value, update_text) VALUES
+  (1, DATE '2026-03-01', 1.20,
+   'Hot midday meals started in all 40 partner schools on 4 March. Daily school registers show average attendance up 1.2 points on February.'),
+  (1, DATE '2026-04-01', 0.85,
+   'Harvest season kept children at home in two blocks, so the gain slowed to 0.85 points. Mobilisers made 310 home visits; headteachers sign the registers.'),
+  (1, DATE '2026-05-01', 1.05,
+   'Teacher workshops ran in 12 schools. Registers show attendance up 1.05 points, and children missing a week or more fell from 46 to 31.'),
+  (1, DATE '2026-06-01', 1.30,
+   'Activity-based classes now run in all 40 schools. Attendance rose 1.3 points by the registers; 22 children re-enrolled after mobiliser visits.'),
+  (1, DATE '2026-07-01', 1.20,
+   'Monsoon flooding closed 3 schools for 4 days, yet attendance rose 1.2 points. The block education office spot-checked registers in 8 schools.'),
+  (1, DATE '2026-08-01', 1.30,
+   'Attendance reached 67.9% across the 40 schools, up 1.3 points this month, from registers countersigned by headteachers and the block office.');

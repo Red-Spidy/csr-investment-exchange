@@ -26,6 +26,7 @@ class Written:
     commitment_id: int | None = None
     project_id: int | None = None
     rulebook_id: int | None = None
+    report_id: int | None = None
 
     def add(self, by: str, text: str) -> None:
         self.effects.append({"by": by, "text": text})
@@ -83,7 +84,7 @@ def _milestone(conn: Connection, milestone_id: int) -> dict[str, Any]:
     return row
 
 
-def submit_evidence(conn: Connection, milestone_id: int, metric: float) -> Written:
+def submit_evidence(conn: Connection, milestone_id: int, metric: float, update: str | None = None) -> Written:
     ms = _milestone(conn, milestone_id)
     if ms["status"] != "pending":
         raise RuleError(
@@ -92,10 +93,10 @@ def submit_evidence(conn: Connection, milestone_id: int, metric: float) -> Writt
     conn.execute(
         """UPDATE milestones
               SET verification_status = 'submitted', reported_at = now(), reported_metric = %s,
-                  evidence_uri = %s
+                  evidence_uri = %s, update_text = %s
             WHERE id = %s""",
         (Decimal(str(metric)), f"evidence/commitment-{ms['commitment_id']}-phase-{ms['phase_no']}.pdf",
-         ms["id"]),
+         update, ms["id"]),
     )
     out = Written()
     out.add("milestones", f"Phase {ms['phase_no']} evidence recorded, reported metric {num(metric)}.")
@@ -222,7 +223,7 @@ def terminate_commitment(conn: Connection, commitment_id: int, reason: str, revi
 
 # ---------------------------------------------------------------- monthly progress
 
-def report_impact(conn: Connection, project_id: int, value: float) -> Written:
+def report_impact(conn: Connection, project_id: int, value: float, update: str | None = None) -> Written:
     # Serialise reporters on the project row so two of them cannot pick the same month.
     if conn.execute("SELECT 1 FROM projects WHERE id = %s FOR UPDATE", (project_id,)).fetchone() is None:
         raise NotFound(f"project {project_id} not found")
@@ -250,12 +251,13 @@ def report_impact(conn: Connection, project_id: int, value: float) -> Written:
                   )::date AS month""",
         (project_id,),
     )["month"]
-    conn.execute(
-        "INSERT INTO impact_reports (project_id, period_month, metric_value) VALUES (%s, %s, %s)",
-        (project_id, month, Decimal(str(value))),
-    )
+    report_id = conn.execute(
+        """INSERT INTO impact_reports (project_id, period_month, metric_value, update_text)
+           VALUES (%s, %s, %s, %s) RETURNING id""",
+        (project_id, month, Decimal(str(value)), update),
+    ).fetchone()["id"]
 
-    out = Written()
+    out = Written(report_id=report_id)
     out.add("impact_reports", f"Recorded {num(value)} for {month:%Y-%m}.")
     row = conn.execute(
         """SELECT rolling_3mo_esg, cumulative_impact FROM company_esg_timeline

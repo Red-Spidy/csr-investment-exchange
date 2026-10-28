@@ -2,7 +2,7 @@ DB_URL ?= postgresql://csr:csr@localhost:5433/csr_exchange
 DB_NAME ?= csr_exchange
 PSQL    = docker exec -i csr_db psql -U csr -d $(DB_NAME) -v ON_ERROR_STOP=1
 
-.PHONY: up down migrate reset seed test-db test-ml test-api test demo psql datasets api web train train-fraud train-impact train-bert proposals score eval-human proposals-unseen eval-unseen demo-check ui-check test-web test-parity verify
+.PHONY: up down migrate reset seed test-db test-ml test-api test demo psql datasets api web train train-fraud train-impact train-bert proposals score eval-human proposals-unseen eval-unseen demo-check ui-check test-web test-parity verify rate
 
 up:
 	docker compose up -d
@@ -97,6 +97,10 @@ eval-unseen:
 # Score every project in the database with the trained models, then grade it in SQL.
 score:
 	PYTHONPATH=ml .venv/bin/python -m pipeline.score
+
+# Rate every NGO update that has words but no rating yet: Gemini when GEMINI_API_KEY is set.
+rate:
+	PYTHONPATH=ml .venv/bin/python -m progress.rate
 
 # BERT training text via Gemini/Groq (keys in .env). Resumable; LIMIT=300 for a pilot.
 proposals:

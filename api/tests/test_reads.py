@@ -132,7 +132,9 @@ def test_impact_reports_are_each_months_gain_per_project(seeded: TestClient):
     rows = get(seeded, "/impact-reports")
     assert [(r["projectId"], r["periodMonth"], r["metricValue"]) for r in rows] == [
         (1, f"2026-0{m}-01", v) for m, v in zip(range(3, 9), [1.2, 0.85, 1.05, 1.3, 1.2, 1.3])]
-    assert set(rows[0]) == {"id", "projectId", "periodMonth", "metricValue"}
+    assert set(rows[0]) == {"id", "projectId", "periodMonth", "metricValue", "updateText", "rating",
+                            "ratingReason", "ratingFlags", "ratedBy"}
+    assert rows[0]["updateText"].startswith("Hot midday meals") and rows[0]["rating"] is None
 
 
 def test_leaderboard_counts_funding_once_not_once_per_report(seeded: TestClient):

@@ -190,7 +190,7 @@ def commitment_views(conn: Connection, ids: list[int] | None = None) -> list[dic
     milestones = conn.execute(
         """SELECT id, project_id, commitment_id, phase_no, description, due_date, reported_at,
                   evidence_uri, reported_metric, verification_status::text AS verification,
-                  verified_by, verified_at
+                  verified_by, verified_at, update_text, rating, rating_reason, rating_flags, rated_by
              FROM milestones WHERE commitment_id = ANY(%s::bigint[]) ORDER BY commitment_id, phase_no""",
         (cids,),
     ).fetchall()
@@ -232,7 +232,9 @@ def audit(conn: Connection) -> list[dict[str, Any]]:
 def impact_reports(conn: Connection) -> list[dict[str, Any]]:
     """Each project's monthly gains, as the NGO reported them."""
     rows = conn.execute(
-        "SELECT id, project_id, period_month, metric_value FROM impact_reports ORDER BY project_id, period_month"
+        """SELECT id, project_id, period_month, metric_value, update_text, rating, rating_reason,
+                  rating_flags, rated_by
+             FROM impact_reports ORDER BY project_id, period_month"""
     )
     return [shape(r) for r in rows]
 

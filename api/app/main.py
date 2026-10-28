@@ -27,6 +27,7 @@ from . import reads, writes
 from .admin import reset_database
 from .db import database_url, make_pool
 from .race import Guards, run_race
+from .rating import rate_update, rater_from_env
 from .scoring import PipelineScorer
 
 PositiveId = Annotated[int, Field(gt=0)]
@@ -39,8 +40,13 @@ class CommitBody(BaseModel):
     amount: Decimal | None = Field(default=None, gt=0, max_digits=14, decimal_places=2)
 
 
+# What the NGO says alongside its number: what happened, and how it knows.
+Update = Annotated[str, Field(max_length=2000)]
+
+
 class EvidenceBody(BaseModel):
     metric: float = Field(allow_inf_nan=False)
+    update: Update | None = None
 
 
 class TerminateBody(BaseModel):
@@ -49,6 +55,7 @@ class TerminateBody(BaseModel):
 
 class ImpactBody(BaseModel):
     value: float = Field(allow_inf_nan=False)
+    update: Update | None = None
 
 
 class LedgerAttemptBody(BaseModel):
@@ -99,11 +106,13 @@ class RaceBody(BaseModel):
 
 def create_app(
     url: str | None = None, allow_reset: bool | None = None, pool_timeout: float = 10,
-    scorer: Any = None,
+    scorer: Any = None, rater: Any = "env",
 ) -> FastAPI:
-    """`scorer` runs the trained models (app/scoring.py); tests pass a stand-in."""
+    """`scorer` runs the trained models (app/scoring.py) and `rater` rates progress updates
+    (app/rating.py: Gemini, the rules, or None for off); tests pass stand-ins."""
     db_url = url or database_url()
     scorer = scorer or PipelineScorer()
+    rater = rater_from_env() if rater == "env" else rater
     reviewer = os.environ.get("CSR_REVIEWER", "Reviewer")
     reset_enabled = (
         os.environ.get("CSR_ALLOW_RESET") == "1" if allow_reset is None else allow_reset
@@ -167,7 +176,19 @@ def create_app(
             result["projectId"] = done.project_id
         if done.rulebook_id is not None:
             result["rulebookId"] = done.rulebook_id
+        if done.report_id is not None:
+            result["reportId"] = done.report_id
         return result
+
+    def rated(pool: ConnectionPool, saved: dict[str, Any], kind: str, row_id: int | None, update: str | None):
+        """After a saved update commits, rate it in its own transaction and add the result to the receipt."""
+        if not saved["ok"] or rater is None or row_id is None or not (update or "").strip():
+            return saved
+        with pool.connection() as conn:
+            line = rate_update(conn, rater, kind, row_id)
+        if line:
+            saved["effects"].append(line)
+        return saved
 
     # ------------------------------------------------------------ health
 
@@ -236,7 +257,8 @@ def create_app(
 
     @api.post("/milestones/{milestone_id}/evidence")
     def submit_evidence(milestone_id: PositiveId, body: EvidenceBody, pool: Pool):
-        return write(pool, lambda c: writes.submit_evidence(c, milestone_id, body.metric))
+        saved = write(pool, lambda c: writes.submit_evidence(c, milestone_id, body.metric, body.update))
+        return rated(pool, saved, "milestone", milestone_id, body.update)
 
     @api.post("/milestones/{milestone_id}/verify")
     def verify(milestone_id: PositiveId, pool: Pool):
@@ -252,7 +274,8 @@ def create_app(
 
     @api.post("/projects/{project_id}/impact-reports")
     def report_impact(project_id: PositiveId, body: ImpactBody, pool: Pool):
-        return write(pool, lambda c: writes.report_impact(c, project_id, body.value))
+        saved = write(pool, lambda c: writes.report_impact(c, project_id, body.value, body.update))
+        return rated(pool, saved, "report", saved.pop("reportId", None), body.update)
 
     @api.post("/projects")
     def submit_proposal(body: ProposalBody, pool: Pool):
