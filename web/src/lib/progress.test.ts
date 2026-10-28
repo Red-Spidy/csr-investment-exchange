@@ -1,9 +1,9 @@
 import { describe, expect, it } from 'vitest'
 import type { ImpactReport } from '../data/types'
-import { progressSoFar, shareOfPromise } from './progress'
+import { expectedByNow, latestReport, progressSoFar, shareOfPromise } from './progress'
 
 const report = (id: number, projectId: number, periodMonth: string, metricValue: number): ImpactReport =>
-  ({ id, projectId, periodMonth, metricValue })
+  ({ id, projectId, periodMonth, metricValue, updateText: null, rating: null, ratingReason: null, ratingFlags: [], ratedBy: null })
 
 const seeded = [1.2, 0.85, 1.05, 1.3, 1.2, 1.3].map((v, i) => report(i + 1, 1, `2026-0${i + 3}-01`, v))
 
@@ -26,5 +26,25 @@ describe('shareOfPromise: how much of the promised gain is reported', () => {
   it('is unknown when nothing measurable was promised', () => {
     expect(shareOfPromise(6.9, null)).toBeNull()
     expect(shareOfPromise(6.9, 0)).toBeNull()
+  })
+})
+
+describe('expectedByNow: the bar, the promised gain spread evenly over the project', () => {
+  it('is the promise times the share of the months gone', () => {
+    expect(expectedByNow(8, 6, 12)).toBeCloseTo(4, 6)
+    expect(expectedByNow(8, 7, 12)).toBeCloseTo(4.6667, 4)
+  })
+  it('is unknown without a measurable promise or a duration', () => {
+    expect(expectedByNow(null, 6, 12)).toBeNull()
+    expect(expectedByNow(8, 6, 0)).toBeNull()
+  })
+})
+
+describe('latestReport: the newest month a project reported', () => {
+  it('is the last month, whatever order the rows come in', () => {
+    expect(latestReport([...seeded].reverse(), 1)?.periodMonth).toBe('2026-08-01')
+  })
+  it('is none before the first report', () => {
+    expect(latestReport(seeded, 2)).toBeNull()
   })
 })

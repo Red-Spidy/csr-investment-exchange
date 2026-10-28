@@ -247,3 +247,38 @@ h3 { font-size: 0.98rem; }
   .match { grid-template-columns: minmax(0, 1fr); padding: 1rem; }
   .kpi__value { font-size: 1.25rem; }
 }
+
+/* ---------------------------------------------------------------- progress ratings */
+
+.rating { gap: 0.45rem; }
+.rating::before { display: none; }
+.pips { display: inline-flex; gap: 2px; }
+.pips i { width: 0.42rem; height: 0.42rem; border-radius: 50%; background: currentColor; opacity: 0.22; }
+.pips i[data-on] { opacity: 1; }
+
+.assessment { display: grid; gap: 0.5rem; justify-items: start; margin-top: 0.4rem; }
+.assessment__words { margin: 0; display: grid; gap: 0.2rem; }
+.assessment__words figcaption { font-size: 0.75rem; font-weight: 600; color: var(--ink-3); }
+.assessment__words blockquote {
+  margin: 0; padding-left: 0.7rem; border-left: 3px solid var(--indigo-200);
+  font-size: 0.85rem; line-height: 1.45; color: var(--ink-2);
+}
+.assessment__rating { display: flex; flex-wrap: wrap; align-items: baseline; gap: 0.3rem 0.6rem; }
+.assessment__flags { margin: 0; padding-left: 1rem; color: var(--madder); }
+
+.barmeter { position: relative; height: 10px; max-width: 26rem; border-radius: 99px; background: rgba(27, 35, 88, 0.12); }
+.barmeter__fill {
+  height: 100%; border-radius: 99px;
+  background: repeating-linear-gradient(90deg, rgba(255, 255, 255, 0.2) 0 1px, transparent 1px 4px), var(--indigo-700);
+}
+.barmeter__bar { position: absolute; top: -5px; bottom: -5px; width: 3px; margin-left: -1.5px; border-radius: 2px; background: var(--turmeric-deep); }
+.bar-key { display: flex; flex-wrap: wrap; gap: 0.3rem 1.2rem; font-size: 0.8rem; color: var(--ink-2); }
+.bar-key span::before { content: ''; display: inline-block; width: 0.7rem; height: 0.55rem; margin-right: 0.35rem; border-radius: 2px; vertical-align: baseline; }
+.bar-key .key-done::before { background: var(--indigo-700); }
+.bar-key .key-bar::before { width: 3px; height: 0.8rem; background: var(--turmeric-deep); }
+.phase .assessment { margin-top: 0.2rem; }
+.evidence-words { white-space: normal; max-width: 34rem; }
+.quoted { margin-top: 0.35rem; color: var(--ink-2); line-height: 1.45; }
+.minor { font-size: 0.85rem; font-weight: 650; margin: 0.4rem 0 0.1rem; }
+.progress-form { display: grid; gap: 0.8rem; margin-top: 0.4rem; max-width: 36rem; }
+.progress-form__actions { display: grid; gap: 0.4rem; justify-items: start; }

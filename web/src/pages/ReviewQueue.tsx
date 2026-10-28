@@ -1,5 +1,5 @@
 import { Link } from 'react-router-dom'
-import { Grade, Kpis, Loading, PageHead, Section, TableScroll } from '../components/ui'
+import { Grade, Kpis, Loading, PageHead, RatingBadge, Section, TableScroll, raterName } from '../components/ui'
 import type { ScorecardRow } from '../data/engine'
 import { usePortal } from '../data/portal'
 import { useExchange, useQuery } from '../data/store'
@@ -69,7 +69,8 @@ export function ReviewQueue() {
         )}
       </Section>
 
-      <Section id="verify" title="Evidence to verify" hint="Verifying releases that phase's money to the NGO. Failing holds it.">
+      <Section id="verify" title="Evidence to verify"
+        hint="Read the NGO's words and the rating, then decide. Verifying releases that phase's money; failing holds it.">
         {evidence.length === 0 ? (
           <div className="empty"><h3>No evidence waiting</h3><p>When an NGO reports a milestone, it appears here.</p></div>
         ) : (
@@ -77,8 +78,9 @@ export function ReviewQueue() {
             <table className="table register">
               <thead>
                 <tr>
-                  <th scope="col">Project</th><th scope="col">Milestone</th><th scope="col" className="r">Result</th>
-                  <th scope="col" className="r">Releases</th><th scope="col"><span className="sr-only">Actions</span></th>
+                  <th scope="col">Project</th><th scope="col">Milestone, in the NGO's words</th><th scope="col">Rating</th>
+                  <th scope="col" className="r">Result</th><th scope="col" className="r">Releases</th>
+                  <th scope="col"><span className="sr-only">Actions</span></th>
                 </tr>
               </thead>
               <tbody>
@@ -88,9 +90,18 @@ export function ReviewQueue() {
                       <Link to={to(`/projects/${v.project.id}`)} className="register__title">{shortTitle(v.project.title)}</Link>
                       <span className="faint small">{v.ngoName}, funded by {v.companyName}</span>
                     </th>
-                    <td>
+                    <td className="evidence-words">
                       Phase {m.phaseNo}: {m.description}
                       <span className="faint small block">{m.reportedAt ? `Reported ${dateShort(m.reportedAt)}` : ''}</span>
+                      {m.updateText
+                        ? <span className="small block quoted">“{m.updateText}”</span>
+                        : <span className="faint small block">No words given with this evidence.</span>}
+                    </td>
+                    <td>
+                      <RatingBadge rating={m.rating} />
+                      {m.ratingReason && <span className="small block">{m.ratingReason}</span>}
+                      {m.ratingFlags.map(f => <span key={f} className="small block bad">{f}</span>)}
+                      {m.ratedBy && <span className="faint small block">By {raterName(m.ratedBy)}</span>}
                     </td>
                     <td className="r num">{m.reportedMetric}</td>
                     <td className="r num">{inrCompact(phase.amount)}</td>

@@ -149,6 +149,14 @@ export interface Milestone {
   verification: Verification
   verifiedBy: string | null
   verifiedAt: string | null
+  /** What the NGO said with its number: what happened, and how it knows. */
+  updateText: string | null
+  /** A rater's 1 (low) to 5 (good) against the bar; advice for the reviewer, never a trigger for money. */
+  rating: number | null
+  ratingReason: string | null
+  ratingFlags: string[]
+  /** "gemini:<model>", or "rules-v1" when no model rated it. */
+  ratedBy: string | null
 }
 
 export interface LedgerEntry {
@@ -175,7 +183,16 @@ export interface ImpactReport {
   projectId: number
   /** First day of the reported month, YYYY-MM-DD. */
   periodMonth: string
+  /** That month's gain in the project's measure. */
   metricValue: number
+  /** What the NGO said with its number: what happened, and how it knows. */
+  updateText: string | null
+  /** A rater's 1 (low) to 5 (good) against the bar; advice for the reviewer, never a trigger for money. */
+  rating: number | null
+  ratingReason: string | null
+  ratingFlags: string[]
+  /** "gemini:<model>", or "rules-v1" when no model rated it. */
+  ratedBy: string | null
 }
 
 /** The whole database. The demo engine treats it as immutable and returns copies. */

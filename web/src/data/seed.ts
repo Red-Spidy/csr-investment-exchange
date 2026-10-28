@@ -149,8 +149,12 @@ export const SEED: DbState = {
 }
 
 /** Monthly progress for project 1, inserted by the seed after the golden path. */
-/** Each month's gain in project 1's attendance rate, in percentage points: +6.9 so far against the +8 promised. */
-export const SEED_IMPACT_REPORTS: [string, number][] = [
-  ['2026-03-01', 1.2], ['2026-04-01', 0.85], ['2026-05-01', 1.05],
-  ['2026-06-01', 1.3], ['2026-07-01', 1.2], ['2026-08-01', 1.3],
+/** Each month's gain in project 1's attendance rate, in percentage points (+6.9 so far against the +8 promised), with the NGO's words. */
+export const SEED_IMPACT_REPORTS: [string, number, string][] = [
+  ['2026-03-01', 1.2, 'Hot midday meals started in all 40 partner schools on 4 March. Daily school registers show average attendance up 1.2 points on February.'],
+  ['2026-04-01', 0.85, 'Harvest season kept children at home in two blocks, so the gain slowed to 0.85 points. Mobilisers made 310 home visits; headteachers sign the registers.'],
+  ['2026-05-01', 1.05, 'Teacher workshops ran in 12 schools. Registers show attendance up 1.05 points, and children missing a week or more fell from 46 to 31.'],
+  ['2026-06-01', 1.3, 'Activity-based classes now run in all 40 schools. Attendance rose 1.3 points by the registers; 22 children re-enrolled after mobiliser visits.'],
+  ['2026-07-01', 1.2, 'Monsoon flooding closed 3 schools for 4 days, yet attendance rose 1.2 points. The block education office spot-checked registers in 8 schools.'],
+  ['2026-08-01', 1.3, 'Attendance reached 67.9% across the 40 schools, up 1.3 points this month, from registers countersigned by headteachers and the block office.'],
 ]

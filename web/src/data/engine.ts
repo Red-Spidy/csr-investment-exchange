@@ -130,6 +130,7 @@ export function commitFunds(
       description: `Phase ${n} deliverable`, dueDate: toIsoDate(addDays(now, n * 90)),
       reportedAt: null, evidenceUri: null, reportedMetric: null,
       verification: 'pending', verifiedBy: null, verifiedAt: null,
+      updateText: null, rating: null, ratingReason: null, ratingFlags: [], ratedBy: null,
     })
   }
   fx.push({
@@ -186,7 +187,7 @@ function guardClosedCommitment(s: DbState, ms: Milestone) {
 }
 
 export function submitEvidence(
-  prev: DbState, milestoneId: number, metric: number, now: Date,
+  prev: DbState, milestoneId: number, metric: number, now: Date, update: string | null = null,
 ): Outcome {
   const s = clone(prev)
   const ms = mustFind(s.milestones, m => m.id === milestoneId, `milestone ${milestoneId} not found`)
@@ -198,6 +199,8 @@ export function submitEvidence(
   ms.reportedAt = now.toISOString()
   ms.reportedMetric = metric
   ms.evidenceUri = `evidence/commitment-${ms.commitmentId}-phase-${ms.phaseNo}.pdf`
+  // Rating needs the model or the rules on the server; offline an update is kept unrated.
+  ms.updateText = update
   return {
     state: s, value: undefined,
     effects: [
@@ -361,7 +364,7 @@ function nextMonth(iso: string): string {
  * INSERT INTO impact_reports for the month after the project's latest report
  * (or the current month for a first report). The window views read this table.
  */
-export function reportImpact(prev: DbState, projectId: number, value: number, now: Date): Outcome {
+export function reportImpact(prev: DbState, projectId: number, value: number, now: Date, update: string | null = null): Outcome {
   const s = clone(prev)
   const cm = latestCommitment(s, projectId)
   if (!cm) throw new RuleError(`Project ${projectId} has no commitment, so there is no funded work to report on.`)
@@ -370,7 +373,10 @@ export function reportImpact(prev: DbState, projectId: number, value: number, no
   }
   const months = s.impactReports.filter(r => r.projectId === projectId).map(r => r.periodMonth).sort()
   const month = months.length ? nextMonth(months[months.length - 1]) : `${toIsoDate(now).slice(0, 7)}-01`
-  s.impactReports.push({ id: nextId(s, 'impactReports'), projectId, periodMonth: month, metricValue: value })
+  s.impactReports.push({
+    id: nextId(s, 'impactReports'), projectId, periodMonth: month, metricValue: value, updateText: update,
+    rating: null, ratingReason: null, ratingFlags: [], ratedBy: null,
+  })
 
   const row = esgTimeline(s).find(r => r.companyId === cm.companyId && r.month === month)
   return {

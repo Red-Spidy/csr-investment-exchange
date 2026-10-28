@@ -8,7 +8,7 @@ const phase = (phaseNo: number, status: FundPhase['status']): FundPhase =>
 const milestone = (phaseNo: number, verification: Milestone['verification']): Milestone => ({
   id: 10 + phaseNo, projectId: 1, commitmentId: 1, phaseNo, description: `Phase ${phaseNo} deliverable`,
   dueDate: '2027-01-01', reportedAt: null, evidenceUri: null, reportedMetric: null, verification,
-  verifiedBy: null, verifiedAt: null,
+  verifiedBy: null, verifiedAt: null, updateText: null, rating: null, ratingReason: null, ratingFlags: [], ratedBy: null,
 })
 const view = (status: CommitmentView['commitment']['status'], phases: FundPhase[], milestones: Milestone[]) =>
   ({ commitment: { status }, phases, milestones } as unknown as CommitmentView)

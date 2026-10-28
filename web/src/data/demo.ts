@@ -14,9 +14,12 @@ export function createDemoState(now: Date = new Date()): DbState {
   s = verifyMilestone(s, 1, 'seed', now).state
   // db/seed.sql verifies phase 1 with a bare UPDATE, so no evidence file is on record.
   s.milestones[0].evidenceUri = null
-  for (const [month, value] of SEED_IMPACT_REPORTS) {
+  for (const [month, value, update] of SEED_IMPACT_REPORTS) {
     s.seq.impactReports += 1
-    s.impactReports.push({ id: s.seq.impactReports, projectId: 1, periodMonth: month, metricValue: value })
+    s.impactReports.push({
+      id: s.seq.impactReports, projectId: 1, periodMonth: month, metricValue: value, updateText: update,
+      rating: null, ratingReason: null, ratingFlags: [], ratedBy: null,
+    })
   }
   return s
 }

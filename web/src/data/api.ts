@@ -83,14 +83,15 @@ export interface ExchangeApi {
   // writes
   /** function fn_commit_funds */
   commitFunds(args: CommitArgs): Promise<ActionResult>
-  submitEvidence(milestoneId: number, metric: number): Promise<ActionResult>
+  /** `update`: what was delivered and how the NGO knows; the server rates it 1-5 for the reviewer. */
+  submitEvidence(milestoneId: number, metric: number, update?: string): Promise<ActionResult>
   /** UPDATE milestones SET verification_status = 'verified' */
   verifyMilestone(milestoneId: number): Promise<ActionResult>
   failMilestone(milestoneId: number): Promise<ActionResult>
   /** function fn_terminate_commitment: end a commitment and refund what was not released. */
   terminateCommitment(commitmentId: number, reason: string): Promise<ActionResult>
   /** INSERT INTO impact_reports, the input to the window-function views. */
-  reportImpact(projectId: number, value: number): Promise<ActionResult>
+  reportImpact(projectId: number, value: number, update?: string): Promise<ActionResult>
   /** Attempt to rewrite history in fund_transactions. */
   tryLedgerMutation(op: 'UPDATE' | 'DELETE', ledgerId: number): Promise<ActionResult>
   /** INSERT INTO projects as pending, then the models score it and fn_grade_project decides. Needs the API. */

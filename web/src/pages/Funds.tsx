@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { Link } from 'react-router-dom'
 import { Cloth, ClothLegend } from '../components/Cloth'
-import { HowItWorks, Kpis, PageHead, Pill, Section, TableScroll, Loading } from '../components/ui'
+import { Assessment, HowItWorks, Kpis, PageHead, Pill, Section, TableScroll, Loading } from '../components/ui'
 import type { CommitmentView } from '../data/api'
 import { usePortal } from '../data/portal'
 import { useExchange, useQuery } from '../data/store'
@@ -263,6 +263,8 @@ export function PhaseCard({ phase, ms, blockedBy, prevMetric, measure }: {
   const { act } = useExchange()
   const { role } = usePortal()
   const [metric, setMetric] = useState('')
+  const [update, setUpdate] = useState('')
+  const words = role === 'ngo' ? 'Your update' : "In the NGO's words"
   const label = `Phase ${phase.phaseNo}`
 
   const tone = phase.status === 'released' ? 'released'
@@ -284,6 +286,7 @@ export function PhaseCard({ phase, ms, blockedBy, prevMetric, measure }: {
           <p className="small">
             Result reported: {ms.reportedMetric}. Verified{phase.releasedAt ? ` and paid ${dateShort(phase.releasedAt)}.` : '.'}
           </p>
+          <Assessment item={ms} title={words} />
         </div>
       )}
 
@@ -291,6 +294,7 @@ export function PhaseCard({ phase, ms, blockedBy, prevMetric, measure }: {
         <div className="phase__state">
           <Pill tone="madder">Held</Pill>
           <p className="small">Verification failed. The {inrCompact(phase.amount)} is not paid.</p>
+          <Assessment item={ms} title={words} />
         </div>
       )}
 
@@ -310,6 +314,7 @@ export function PhaseCard({ phase, ms, blockedBy, prevMetric, measure }: {
               ? ` Verifying pays ${inrCompact(phase.amount)} to the NGO; failing holds it.`
               : ' Waiting for the exchange reviewer to verify it.'}
           </p>
+          <Assessment item={ms} title={words} />
           {role === 'review' && (
             <div className="phase__actions">
               <button className="btn btn--small"
@@ -335,7 +340,7 @@ export function PhaseCard({ phase, ms, blockedBy, prevMetric, measure }: {
           <form className="phase__state" onSubmit={e => {
             e.preventDefault()
             const value = Number(metric)
-            if (Number.isFinite(value)) act(`Evidence submitted for ${label.toLowerCase()}`, api => api.submitEvidence(ms.id, value))
+            if (Number.isFinite(value)) act(`Evidence submitted for ${label.toLowerCase()}`, api => api.submitEvidence(ms.id, value, update.trim()))
           }}>
             <Pill tone="linen">Evidence due</Pill>
             <div className="field">
@@ -345,7 +350,14 @@ export function PhaseCard({ phase, ms, blockedBy, prevMetric, measure }: {
                 value={metric} onChange={e => setMetric(e.target.value)} required />
               <span id={`m${ms.id}-hint`} className="faint small">{measure ?? 'In the measure the proposal promised to move'}</span>
             </div>
+            <div className="field">
+              <label htmlFor={`m${ms.id}-update`}>What was delivered, and how you know</label>
+              <textarea id={`m${ms.id}-update`} className="input" rows={4} required minLength={20} maxLength={2000}
+                placeholder="e.g. Attendance registers from all 40 schools, countersigned by headteachers"
+                value={update} onChange={e => setUpdate(e.target.value)} />
+            </div>
             <button className="btn btn--small" type="submit">Submit evidence</button>
+            <p className="faint small">Your words and number are rated 1 to 5 for the reviewer, who decides on the payment.</p>
           </form>
         ) : (
           <div className="phase__state">

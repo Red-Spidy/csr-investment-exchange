@@ -1,6 +1,6 @@
 import { useMemo, useState, type KeyboardEvent } from 'react'
 import { Link } from 'react-router-dom'
-import { HowItWorks, Kpis, Meter, PageHead, Pill, Section, Sql, TableScroll, Loading } from '../components/ui'
+import { HowItWorks, Kpis, Meter, PageHead, Pill, RatingBadge, Section, Sql, TableScroll, Loading } from '../components/ui'
 import type { CommitmentView } from '../data/api'
 import type { EsgRow } from '../data/engine'
 import { usePortal } from '../data/portal'
@@ -10,7 +10,7 @@ import { inrCompact, monthLabel, num, shortNum } from '../lib/format'
 import type { ImpactReport } from '../data/types'
 import { promisedChange } from '../lib/claim'
 import { metricLabel, sectorLabel, unitShort } from '../lib/labels'
-import { progressSoFar, shareOfPromise } from '../lib/progress'
+import { expectedByNow, latestReport, progressSoFar, shareOfPromise } from '../lib/progress'
 
 const WINDOW_SQL = `SUM(month_impact) OVER (PARTITION BY company_id ORDER BY month
       ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW)    AS cumulative_impact,
@@ -60,13 +60,14 @@ export function Impact() {
 
       {funded.length > 0 && reports && (
         <Section id="targets" title="Progress against targets"
-          hint="Each project's monthly gains added up, against what its proposal promised">
+          hint="Each project's monthly gains added up, against the bar and what its proposal promised">
           <TableScroll label="Progress against targets">
             <table className="table register">
               <thead>
                 <tr>
-                  <th scope="col">Project</th><th scope="col">Measure</th><th scope="col" className="r">Promised</th>
-                  <th scope="col" className="r">Reported so far</th><th scope="col">Share of the promise</th>
+                  <th scope="col">Project</th><th scope="col" className="r">Promised</th>
+                  <th scope="col" className="r">Expected by now</th><th scope="col" className="r">Reported so far</th>
+                  <th scope="col">Share of the promise</th><th scope="col">Latest rating</th>
                 </tr>
               </thead>
               <tbody>{funded.map(v => <TargetRow key={v.commitment.id} v={v} reports={reports} />)}</tbody>
@@ -146,15 +147,17 @@ function TargetRow({ v, reports }: { v: CommitmentView; reports: ImpactReport[] 
   const promised = measured ? promisedChange(target) : null
   const { total, months } = progressSoFar(reports, v.project.id)
   const share = shareOfPromise(total, promised)
+  const bar = expectedByNow(promised, months, v.project.durationMonths)
+  const latest = latestReport(reports, v.project.id)
   const u = measured ? ` ${unitShort(unit!)}` : ''
   return (
     <tr>
       <th scope="row">
         <Link to={to(`/projects/${v.project.id}`)} className="register__title">{v.project.title}</Link>
-        <span className="faint small">{v.ngoName}</span>
+        <span className="faint small">{v.ngoName}{d ? `, ${measured && name ? metricLabel(name) : 'no measurable target'}` : ''}</span>
       </th>
-      <td>{d ? (measured && name ? metricLabel(name) : <span className="faint">No measurable target</span>) : ''}</td>
       <td className="r num">{promised != null ? `+${shortNum(promised)}${u}` : <span className="faint">None stated</span>}</td>
+      <td className="r num">{bar != null && months > 0 ? `+${shortNum(bar)}${u}` : <span className="faint">None yet</span>}</td>
       <td className="r num">{months ? `+${shortNum(total)}${u}` : <span className="faint">None yet</span>}
         {months > 0 && <span className="faint small block">{months} month{months === 1 ? '' : 's'}</span>}</td>
       <td>
@@ -164,6 +167,10 @@ function TargetRow({ v, reports }: { v: CommitmentView; reports: ImpactReport[] 
             <span className="num small">{Math.round(share * 100)}%</span>
           </div>
         ) : <span className="faint">Not measurable yet</span>}
+      </td>
+      <td>
+        {latest ? <RatingBadge rating={latest.rating} /> : <span className="faint">No reports</span>}
+        {latest?.ratingReason && <span className="faint small block">{latest.ratingReason}</span>}
       </td>
     </tr>
   )

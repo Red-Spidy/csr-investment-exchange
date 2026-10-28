@@ -14,7 +14,8 @@ DB_URL=${DB_URL:-postgresql://csr:csr@localhost:5433/csr_exchange}
 mkdir -p demo-check
 
 make demo >/dev/null
-DATABASE_URL=$DB_URL CSR_ALLOW_RESET=1 .venv/bin/python -m uvicorn app.main:app --app-dir api \
+# Rating off: the browser's offline engine never rates, so both sides stay comparable.
+DATABASE_URL=$DB_URL CSR_ALLOW_RESET=1 CSR_RATER=off .venv/bin/python -m uvicorn app.main:app --app-dir api \
   --host 127.0.0.1 --port "$PORT" > demo-check/parity-api.log 2>&1 &
 API=$!
 trap 'kill $API 2>/dev/null || true' EXIT

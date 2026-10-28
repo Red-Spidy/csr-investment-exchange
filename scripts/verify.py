@@ -89,8 +89,9 @@ def preflight() -> set[str]:
 
     env = ROOT / ".env"
     keys = dict(re.findall(r"^([A-Z_]+)=(.*)$", env.read_text(), re.M)) if env.exists() else {}
-    check(None, "GEMINI_API_KEY is set in .env (only needed to generate new training proposals)",
-          bool(keys.get("GEMINI_API_KEY", "").strip()), "not needed for testing or the demo", warn=True)
+    check(None, "GEMINI_API_KEY is set in .env (Gemini rates NGO updates; the tests use rules)",
+          bool(keys.get("GEMINI_API_KEY", "").strip()),
+          "without it the rules rate NGO updates instead of Gemini; the tests never need it", warn=True)
     return have
 
 

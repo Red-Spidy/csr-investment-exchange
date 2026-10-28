@@ -70,13 +70,13 @@ export function createDemoApi(): ExchangeApi {
     leaderboard: async () => ngoLeaderboard(db),
 
     commitFunds: async args => write(() => commitFunds(db, args, new Date())),
-    submitEvidence: async (id, metric) => write(() => submitEvidence(db, id, metric, new Date())),
+    submitEvidence: async (id, metric, update) => write(() => submitEvidence(db, id, metric, new Date(), update ?? null)),
     verifyMilestone: async id => write(() => verifyMilestone(db, id, REVIEWER, new Date())),
     failMilestone: async id => write(() => failMilestone(db, id, REVIEWER, new Date())),
     terminateCommitment: async (id, reason) =>
       write(() => terminateCommitment(db, id, reason, REVIEWER, new Date())),
 
-    reportImpact: async (projectId, value) => write(() => reportImpact(db, projectId, value, new Date())),
+    reportImpact: async (projectId, value, update) => write(() => reportImpact(db, projectId, value, new Date(), update ?? null)),
 
     tryLedgerMutation: async (op, id) => {
       try {

@@ -73,11 +73,11 @@ export function createHttpApi(base = '/api'): ExchangeApi {
     leaderboard: () => get('/leaderboard'),
 
     commitFunds: args => post('/commitments', args),
-    submitEvidence: (milestoneId, metric) => post(`/milestones/${milestoneId}/evidence`, { metric }),
+    submitEvidence: (milestoneId, metric, update) => post(`/milestones/${milestoneId}/evidence`, { metric, update }),
     verifyMilestone: milestoneId => post(`/milestones/${milestoneId}/verify`),
     failMilestone: milestoneId => post(`/milestones/${milestoneId}/fail`),
     terminateCommitment: (commitmentId, reason) => post(`/commitments/${commitmentId}/terminate`, { reason }),
-    reportImpact: (projectId, value) => post(`/projects/${projectId}/impact-reports`, { value }),
+    reportImpact: (projectId, value, update) => post(`/projects/${projectId}/impact-reports`, { value, update }),
     tryLedgerMutation: (op, ledgerId) => post(`/ledger/${ledgerId}/attempts`, { op }),
     submitProposal: args => post('/projects', args),
     reviewProject: (projectId, approve, note) => post(`/projects/${projectId}/review`, { approve, note }),

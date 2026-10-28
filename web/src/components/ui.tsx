@@ -180,6 +180,73 @@ export function ScoreStack({ segments, total, caption }: { segments: Segment[]; 
   )
 }
 
+// ---------------------------------------------------------------- progress ratings
+
+const RATING_TONE: Record<number, 'neem' | 'turmeric' | 'madder'> = { 5: 'neem', 4: 'neem', 3: 'turmeric', 2: 'madder', 1: 'madder' }
+
+/** A rater's 1 (low) to 5 (good). Advice for the reviewer: it never releases money. */
+export function RatingBadge({ rating }: { rating: number | null }) {
+  if (rating == null) return <span className="pill rating" data-tone="linen">Not rated</span>
+  return (
+    <span className="pill rating" data-tone={RATING_TONE[rating]} aria-label={`Rated ${rating} of 5`}>
+      <span className="pips" aria-hidden="true">
+        {[1, 2, 3, 4, 5].map(i => <i key={i} data-on={i <= rating || undefined} />)}
+      </span>
+      {rating} of 5
+    </span>
+  )
+}
+
+/** "gemini:gemini-2.5-flash" -> "Gemini (gemini-2.5-flash)"; the rules say so. */
+export function raterName(ratedBy: string | null): string {
+  if (!ratedBy) return ''
+  if (ratedBy.startsWith('rules')) return 'the rules (no AI model)'
+  const [provider, model] = ratedBy.split(':')
+  return `${provider.charAt(0).toUpperCase()}${provider.slice(1)}${model ? ` (${model})` : ''}`
+}
+
+interface Rated {
+  updateText: string | null
+  rating: number | null
+  ratingReason: string | null
+  ratingFlags: string[]
+  ratedBy: string | null
+}
+
+/** What the NGO said, and how it was rated: what a reviewer reads before deciding. */
+export function Assessment({ item, title = "In the NGO's words" }: { item: Rated; title?: string }) {
+  if (!item.updateText && item.rating == null) return null
+  return (
+    <div className="assessment">
+      {item.updateText && (
+        <figure className="assessment__words">
+          <figcaption>{title}</figcaption>
+          <blockquote>{item.updateText}</blockquote>
+        </figure>
+      )}
+      <div className="assessment__rating">
+        <RatingBadge rating={item.rating} />
+        <span className="small">{item.rating == null ? 'Not rated yet.' : item.ratingReason}</span>
+      </div>
+      {item.ratingFlags.length > 0 && (
+        <ul className="assessment__flags small">{item.ratingFlags.map(f => <li key={f}>{f}</li>)}</ul>
+      )}
+      {item.ratedBy && <p className="faint small">Rated by {raterName(item.ratedBy)}. A person still decides.</p>}
+    </div>
+  )
+}
+
+/** Progress so far against the promise, with a marker where the bar is. */
+export function BarMeter({ value, max, bar, label }: { value: number; max: number; bar: number | null; label: string }) {
+  const at = (v: number) => `${Math.max(0, Math.min(1, v / max)) * 100}%`
+  return (
+    <div className="barmeter" role="meter" aria-label={label} aria-valuemin={0} aria-valuemax={max} aria-valuenow={value}>
+      <div className="barmeter__fill" style={{ width: at(value) }} />
+      {bar != null && <div className="barmeter__bar" style={{ left: at(bar) }} title="Expected by now" />}
+    </div>
+  )
+}
+
 // ---------------------------------------------------------------- code
 
 export function Sql({ children, label }: { children: string; label?: string }) {

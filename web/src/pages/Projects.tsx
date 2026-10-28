@@ -1,15 +1,15 @@
 import { useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
-import { Grade, HowItWorks, Meter, PageHead, RangeBar, ScoreStack, Section, StatusPill, TableScroll, Loading } from '../components/ui'
+import { Assessment, BarMeter, Grade, HowItWorks, Meter, PageHead, RangeBar, ScoreStack, Section, StatusPill, TableScroll, Loading } from '../components/ui'
 import type { CommitmentView, ProjectDetail } from '../data/api'
 import { usePortal } from '../data/portal'
 import { useExchange, useQuery } from '../data/store'
 import type { SpendingHistory } from '../data/types'
 import { CommitmentBlock } from './Funds'
 import { promisedChange } from '../lib/claim'
-import { inr, inrCompact, num, shortNum } from '../lib/format'
+import { inr, inrCompact, monthLabel, num, shortNum } from '../lib/format'
 import { metricLabel, sdgName, sectorLabel, STATUS_LABEL, unitLong, unitShort } from '../lib/labels'
-import { progressSoFar, shareOfPromise } from '../lib/progress'
+import { expectedByNow, latestReport, progressSoFar, shareOfPromise } from '../lib/progress'
 
 type Filter = 'all' | 'flagged' | 'approved' | 'funded'
 const FILTERS: { id: Filter; label: string }[] = [
@@ -168,7 +168,7 @@ function ProjectView({ d }: { d: ProjectDetail }) {
             <Section id="funding" title="Funding" hint={fundingHint(commitment)}>
               <CommitmentBlock v={commitment} heading={false}
                 measure={measure ? `${metricLabel(measure.name)}, in ${unitLong(measure.unit)} gained since the start` : undefined} />
-              <Progress projectId={p.id} measure={measure} promised={promised}
+              <Progress projectId={p.id} measure={measure} promised={promised} durationMonths={p.durationMonths}
                 canReport={role === 'ngo' && commitment.commitment.status === 'active'} />
             </Section>
           )}
@@ -333,21 +333,27 @@ function Review({ projectId }: { projectId: number }) {
 
 /**
  * Monthly progress: each report is that month's gain in the project's measure, so the reports
- * add up to the total gained so far, held against what the proposal promised. Only the NGO
- * reports; the company and the reviewer see the same totals.
+ * add up to the total so far, held against the bar (where the promise says it should be by
+ * now). With each report the NGO says what happened and how it knows; the server rates that
+ * 1 to 5 for the company and the reviewer. Only the NGO reports.
  */
-function Progress({ projectId, measure, promised, canReport }: {
+function Progress({ projectId, measure, promised, durationMonths, canReport }: {
   projectId: number
   measure: { name: string; unit: string } | null
   promised: number | null
+  durationMonths: number
   canReport: boolean
 }) {
   const { act } = useExchange()
+  const { role } = usePortal()
   const { data: reports } = useQuery(api => api.impactReports())
   const [value, setValue] = useState('')
+  const [update, setUpdate] = useState('')
   if (!reports) return null
   const { total, months } = progressSoFar(reports, projectId)
   const share = shareOfPromise(total, promised)
+  const bar = expectedByNow(promised, months, durationMonths)
+  const latest = latestReport(reports, projectId)
   const unit = measure ? unitLong(measure.unit) : ''
   if (!canReport && months === 0) return null
 
@@ -356,16 +362,33 @@ function Progress({ projectId, measure, promised, canReport }: {
       <h3 className="subhead">Monthly progress</h3>
       <p className="small">
         {months === 0
-          ? `No progress reported yet.${promised != null ? ` The proposal promised +${shortNum(promised)} ${unit}.` : ''}`
+          ? `No progress reported yet.${promised != null ? ` The proposal promised +${shortNum(promised)} ${unit} over ${durationMonths} months.` : ''}`
           : `Reported so far: +${shortNum(total)} ${unit} over ${months} month${months === 1 ? '' : 's'}`
             + (share != null ? `, ${Math.round(share * 100)}% of the +${shortNum(promised!)} promised.` : '.')}
       </p>
-      {share != null && months > 0 && <Meter value={Math.min(1, share)} tone={share >= 1 ? 'neem' : 'indigo'} label="Share of the promised gain reported" />}
+      {promised != null && months > 0 && (
+        <>
+          <BarMeter value={total} max={Math.max(promised, total)} bar={bar} label="Progress so far against the promise" />
+          <p className="bar-key">
+            <span className="key-done">Reported +{shortNum(total)}</span>
+            <span className="key-bar">The bar: +{shortNum(bar!)} expected after {months} of {durationMonths} months</span>
+          </p>
+        </>
+      )}
+      {latest && (latest.updateText || latest.rating != null) && (
+        <div>
+          <h4 className="minor">Latest update, {monthLabel(latest.periodMonth)}: +{shortNum(latest.metricValue)} {unit}</h4>
+          <Assessment item={latest} title={role === 'ngo' ? 'You said' : "In the NGO's words"} />
+        </div>
+      )}
       {canReport && (
-        <form className="inline-form" onSubmit={e => {
+        <form className="progress-form" onSubmit={e => {
           e.preventDefault()
           const v = Number(value)
-          if (value && Number.isFinite(v)) act('Monthly progress reported', api => api.reportImpact(projectId, v)).then(r => { if (r.ok) setValue('') })
+          if (value && Number.isFinite(v)) {
+            act('Monthly progress reported', api => api.reportImpact(projectId, v, update.trim()))
+              .then(r => { if (r.ok) { setValue(''); setUpdate('') } })
+          }
         }}>
           <div className="field">
             <label htmlFor="progress">
@@ -374,13 +397,20 @@ function Progress({ projectId, measure, promised, canReport }: {
             <input id="progress" className="input" type="number" step="any" inputMode="decimal" required
               value={value} onChange={e => setValue(e.target.value)} />
           </div>
-          <button className="btn btn--quiet" type="submit">Report progress</button>
+          <div className="field">
+            <label htmlFor="progress-update">What happened this month, and how you know</label>
+            <textarea id="progress-update" className="input" rows={3} required minLength={20} maxLength={2000}
+              placeholder="e.g. Registers from all 40 schools show attendance up 1.4 points; the block office checked 8 schools"
+              value={update} onChange={e => setUpdate(e.target.value)} />
+          </div>
+          <div className="progress-form__actions">
+            <button className="btn btn--quiet" type="submit">Report progress</button>
+            <p className="faint small">
+              Enter only this month's gain, not the total so far. Your update is rated 1 to 5 against the bar,
+              for the company and the reviewer. Each report fills the month after your last one.
+            </p>
+          </div>
         </form>
-      )}
-      {canReport && (
-        <p className="faint small">
-          Enter only this month's gain, not the total so far. Each report fills the month after your last one.
-        </p>
       )}
     </div>
   )

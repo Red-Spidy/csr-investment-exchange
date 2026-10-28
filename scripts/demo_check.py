@@ -132,7 +132,13 @@ def workflow(c: httpx.Client) -> dict:
 
     print("\nMilestones: no proof, no release")
     m1, m2 = milestones[0], milestones[1]
-    post(f"/milestones/{m1['id']}/evidence", {"metric": 60})
+    sent = post(f"/milestones/{m1['id']}/evidence", {"metric": 60, "update": (
+        "Antenatal camps ran in 60 villages; ASHA registers show 1,240 check-ups and coverage up to 60%.")})
+    rated = next(m for v in get("/commitments") if v["commitment"]["id"] == cid for m in v["milestones"]
+                 if m["id"] == m1["id"])
+    check("the NGO's evidence is rated 1 to 5 for the reviewer, and no money moves on the rating",
+          sent["ok"] and rated["rating"] in range(1, 6) and rated["updateText"]
+          and all(p["status"] == "locked" for p in view["phases"]), str(rated.get("rating")))
     check("verifying milestone 1 releases phase 1", post(f"/milestones/{m1['id']}/verify")["ok"])
     view = next(v for v in get("/commitments") if v["commitment"]["id"] == cid)
     check("phase 1 released, the rest still locked",
@@ -150,7 +156,9 @@ def workflow(c: httpx.Client) -> dict:
 
     print("\nWindow functions")
     before = len(get("/esg-timeline"))
-    check("an NGO's monthly report is accepted", post("/projects/1/impact-reports", {"value": 1.4})["ok"])
+    check("an NGO's monthly report is accepted and rated against the bar", post("/projects/1/impact-reports", {
+        "value": 1.4, "update": "Registers from all 40 schools show attendance up 1.4 points; 8 schools spot-checked."})["ok"]
+          and get("/impact-reports")[-1]["rating"] == 5)
     check("company_esg_timeline gains the new month", len(get("/esg-timeline")) == before + 1)
 
     print("\nSafeguards")
@@ -250,7 +258,7 @@ def main() -> int:
     api = web = None
     try:
         api = start([str(ROOT / ".venv/bin/python"), "-m", "uvicorn", "app.main:app", "--app-dir", "api",
-                     "--port", str(API_PORT)], ROOT, {"DATABASE_URL": DB_URL, "CSR_ALLOW_RESET": "1"},
+                     "--port", str(API_PORT)], ROOT, {"DATABASE_URL": DB_URL, "CSR_ALLOW_RESET": "1", "CSR_RATER": "rules"},
                     OUT / "api.log")
         web = start(["npx", "vite", "preview", "--host", "127.0.0.1", "--port", str(WEB_PORT), "--strictPort"],
                     ROOT / "web", {"API_URL": f"http://127.0.0.1:{API_PORT}"}, OUT / "web.log")
