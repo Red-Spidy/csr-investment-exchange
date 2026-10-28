@@ -3,7 +3,7 @@
 # Exactly one must win. This is the live demo for the atomic-commitment claim.
 set -uo pipefail
 
-PSQL="docker exec -i csr_db psql -U csr -d csr_exchange -qtAX"
+PSQL="docker exec -i csr_db psql -U csr -d ${DB_NAME:-csr_exchange} -qtAX"
 
 # Teardown must explicitly suspend the append-only ledger guard. That guard
 # blocks cascade deletes too -- you cannot erase financial history by deleting

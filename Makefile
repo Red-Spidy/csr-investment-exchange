@@ -1,5 +1,6 @@
 DB_URL ?= postgresql://csr:csr@localhost:5433/csr_exchange
-PSQL   := docker exec -i csr_db psql -U csr -d csr_exchange -v ON_ERROR_STOP=1
+DB_NAME ?= csr_exchange
+PSQL    = docker exec -i csr_db psql -U csr -d $(DB_NAME) -v ON_ERROR_STOP=1
 
 .PHONY: up down migrate reset seed test-db test-ml test-api test demo psql datasets api web train train-fraud train-impact train-bert proposals score eval-human proposals-unseen eval-unseen demo-check ui-check test-web test-parity verify
 
@@ -23,13 +24,19 @@ seed:
 	$(PSQL) -f - < db/seed.sql
 	@echo "seed data loaded"
 
-# Runs every file even after a failure, then fails if any did (a bare for loop
-# would report only the last file's result).
+# Runs on a throwaway database built from db/migrations and db/seed.sql, so it never reads
+# or changes the demo data. Every file runs even after a failure, then it fails if any did
+# (a bare for loop would report only the last file's result).
 DB_TESTS ?= db/tests
+TEST_DB  ?= csr_dbtest
+TEST_PSQL = docker exec -i csr_db psql -U csr -d $(TEST_DB) -v ON_ERROR_STOP=1
 test-db:
+	@docker exec csr_db psql -U csr -d csr_exchange -qX -c "DROP DATABASE IF EXISTS $(TEST_DB) WITH (FORCE)" -c "CREATE DATABASE $(TEST_DB)"
+	@$(MAKE) --no-print-directory migrate seed DB_NAME=$(TEST_DB) >/dev/null
 	@fail=0; \
-	for f in $(DB_TESTS)/*.sql; do [ -e "$$f" ] || continue; echo "== $$f"; $(PSQL) -f - < $$f || fail=1; done; \
-	for f in $(DB_TESTS)/*.sh; do [ -e "$$f" ] || continue; echo "== $$f"; bash $$f || fail=1; done; \
+	for f in $(DB_TESTS)/*.sql; do [ -e "$$f" ] || continue; echo "== $$f"; $(TEST_PSQL) -f - < $$f || fail=1; done; \
+	for f in $(DB_TESTS)/*.sh; do [ -e "$$f" ] || continue; echo "== $$f"; DB_NAME=$(TEST_DB) bash $$f || fail=1; done; \
+	docker exec csr_db psql -U csr -d csr_exchange -qX -c "DROP DATABASE IF EXISTS $(TEST_DB) WITH (FORCE)"; \
 	exit $$fail
 
 test-ml:

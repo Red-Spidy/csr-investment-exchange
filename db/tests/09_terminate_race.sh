@@ -6,7 +6,7 @@
 # never interleave mid-way. Set DB_CONTAINER to test a database other than csr_db.
 set -uo pipefail
 
-PSQL="docker exec -i ${DB_CONTAINER:-csr_db} psql -U csr -d csr_exchange -qtAX"
+PSQL="docker exec -i ${DB_CONTAINER:-csr_db} psql -U csr -d ${DB_NAME:-csr_exchange} -qtAX"
 
 # Teardown opts out of the append-only ledger in the open, as 06_concurrency.sh does,
 # and clears the audit rows too: audit_log has no foreign key to cascade through.
