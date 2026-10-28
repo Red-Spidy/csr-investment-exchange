@@ -264,6 +264,8 @@ export function PhaseCard({ phase, ms, blockedBy, prevMetric, measure }: {
   const { role } = usePortal()
   const [metric, setMetric] = useState('')
   const [update, setUpdate] = useState('')
+  // Rating the update can take Gemini 15-20 seconds; the form says so and cannot be sent twice.
+  const [busy, setBusy] = useState(false)
   const words = role === 'ngo' ? 'Your update' : "In the NGO's words"
   const label = `Phase ${phase.phaseNo}`
 
@@ -340,7 +342,10 @@ export function PhaseCard({ phase, ms, blockedBy, prevMetric, measure }: {
           <form className="phase__state" onSubmit={e => {
             e.preventDefault()
             const value = Number(metric)
-            if (Number.isFinite(value)) act(`Evidence submitted for ${label.toLowerCase()}`, api => api.submitEvidence(ms.id, value, update.trim()))
+            if (!Number.isFinite(value) || busy) return
+            setBusy(true)
+            act(`Evidence submitted for ${label.toLowerCase()}`, api => api.submitEvidence(ms.id, value, update.trim()))
+              .finally(() => setBusy(false))
           }}>
             <Pill tone="linen">Evidence due</Pill>
             <div className="field">
@@ -356,7 +361,10 @@ export function PhaseCard({ phase, ms, blockedBy, prevMetric, measure }: {
                 placeholder="e.g. Attendance registers from all 40 schools, countersigned by headteachers"
                 value={update} onChange={e => setUpdate(e.target.value)} />
             </div>
-            <button className="btn btn--small" type="submit">Submit evidence</button>
+            <button className="btn btn--small" type="submit" disabled={busy} aria-busy={busy || undefined}>
+              {busy ? 'Submitting and rating…' : 'Submit evidence'}
+            </button>
+            {busy && <p className="small muted" role="status">Saved first, then rated. Rating can take about 20 seconds.</p>}
             <p className="faint small">Your words and number are rated 1 to 5 for the reviewer, who decides on the payment.</p>
           </form>
         ) : (

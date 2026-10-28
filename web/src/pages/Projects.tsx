@@ -349,6 +349,8 @@ function Progress({ projectId, measure, promised, durationMonths, canReport }: {
   const { data: reports } = useQuery(api => api.impactReports())
   const [value, setValue] = useState('')
   const [update, setUpdate] = useState('')
+  // Rating the update can take Gemini 15-20 seconds; the form says so and cannot be sent twice.
+  const [busy, setBusy] = useState(false)
   if (!reports) return null
   const { total, months } = progressSoFar(reports, projectId)
   const share = shareOfPromise(total, promised)
@@ -385,9 +387,11 @@ function Progress({ projectId, measure, promised, durationMonths, canReport }: {
         <form className="progress-form" onSubmit={e => {
           e.preventDefault()
           const v = Number(value)
-          if (value && Number.isFinite(v)) {
+          if (value && Number.isFinite(v) && !busy) {
+            setBusy(true)
             act('Monthly progress reported', api => api.reportImpact(projectId, v, update.trim()))
               .then(r => { if (r.ok) { setValue(''); setUpdate('') } })
+              .finally(() => setBusy(false))
           }
         }}>
           <div className="field">
@@ -404,7 +408,10 @@ function Progress({ projectId, measure, promised, durationMonths, canReport }: {
               value={update} onChange={e => setUpdate(e.target.value)} />
           </div>
           <div className="progress-form__actions">
-            <button className="btn btn--quiet" type="submit">Report progress</button>
+            <button className="btn btn--quiet" type="submit" disabled={busy} aria-busy={busy || undefined}>
+              {busy ? 'Reporting and rating…' : 'Report progress'}
+            </button>
+            {busy && <p className="small muted" role="status">Saved first, then rated. Rating can take about 20 seconds.</p>}
             <p className="faint small">
               Enter only this month's gain, not the total so far. Your update is rated 1 to 5 against the bar,
               for the company and the reviewer. Each report fills the month after your last one.
