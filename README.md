@@ -10,7 +10,8 @@ Companion implementation for the ADV_SQL review deck.
 ```bash
 docker compose up -d          # or: make up
 make migrate seed             # schema + demo scenario
-make test                     # DB assertions, API tests, ML tests
+make test                     # DB assertions, ML, API and web tests
+make verify                   # is everything working? setup, every layer, end to end (docs/testing.md)
 make psql                     # poke around
 
 make train train-bert         # once: the three models (about 2 h, almost all of it BERT)
@@ -171,8 +172,11 @@ Built and verified:
 - 27/27 DB checks pass from a clean `reset`
 - Both two-session concurrency tests pass (double funding, and termination against verification)
 - FastAPI layer (`api/`) with tests against real Postgres, including a real two-session race
-- React frontend (`web/`): six screens, on the API or on an in-browser demo store. `npm test` pins
-  the demo's ported matching, window-view and trigger logic to numbers read from this database.
+- React frontend (`web/`): a sign-in page and three portals (NGO, company, review console), on the
+  API or on an in-browser demo store. `npm test` pins the demo's ported matching, window-view and
+  trigger logic to numbers read from this database.
+- `make verify` (`docs/testing.md`): a preflight of the setup, every layer's tests, the offline
+  engine against the real API, and `make demo-check` with a 33-step browser journey
 - Synthetic training data: 500 NGOs, 2,000 projects, 2,416 NGO-years of spending, and 2,000
   LLM-written proposals, each checked fact by fact
 - Isolation Forest, XGBoost and three BERT readers, evaluated on held-out NGOs

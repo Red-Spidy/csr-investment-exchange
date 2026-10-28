@@ -1,7 +1,7 @@
 DB_URL ?= postgresql://csr:csr@localhost:5433/csr_exchange
 PSQL   := docker exec -i csr_db psql -U csr -d csr_exchange -v ON_ERROR_STOP=1
 
-.PHONY: up down migrate reset seed test-db test-ml test-api test demo psql datasets api web train train-fraud train-impact train-bert proposals score eval-human proposals-unseen eval-unseen demo-check ui-check
+.PHONY: up down migrate reset seed test-db test-ml test-api test demo psql datasets api web train train-fraud train-impact train-bert proposals score eval-human proposals-unseen eval-unseen demo-check ui-check test-web test-parity verify
 
 up:
 	docker compose up -d
@@ -38,7 +38,18 @@ test-ml:
 test-api:
 	.venv/bin/python -m pytest -c api/pytest.ini api/tests -q
 
-test: test-db test-ml test-api
+test-web:
+	cd web && npx vitest run && npx tsc -b && npx vite build
+
+test: test-db test-ml test-api test-web
+
+# The browser's offline engine against the real API, reads and writes. Replaces the demo data.
+test-parity:
+	bash scripts/parity.sh
+
+# Is everything working? Preflight, every layer's tests, then make demo-check. QUICK=1 skips the last.
+verify:
+	@QUICK=$(QUICK) .venv/bin/python scripts/verify.py
 
 api:
 	DATABASE_URL=$(DB_URL) CSR_ALLOW_RESET=1 .venv/bin/python -m uvicorn app.main:app --app-dir api --reload --reload-dir api --port 8000
