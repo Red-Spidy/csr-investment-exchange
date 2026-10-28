@@ -87,6 +87,17 @@ export function unitShort(unit: string): string {
   }
 }
 
+/** A unit spelled out for a form label or a sentence: percentage_points -> percentage points. */
+export function unitLong(unit: string): string {
+  switch (unit) {
+    case 'percentage_points': return 'percentage points'
+    case 'percent_reduction': return 'percentage points fewer cases'
+    case 'percent_increase': return 'percent higher'
+    case 'tonnes_per_month': return 'tonnes a month'
+    default: return unit.replace(/_/g, ' ')
+  }
+}
+
 export function metricLabel(name: string): string {
   const text = name.replace(/_/g, ' ')
   return text.charAt(0).toUpperCase() + text.slice(1)

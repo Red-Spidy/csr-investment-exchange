@@ -72,18 +72,19 @@ describe('window views', () => {
 
   it('esgTimeline equals company_esg_timeline', () => {
     const rows = esgTimeline(s)
-    expect(rows.map(r => r.cumulativeImpact)).toEqual([1.2, 3.25, 6.35, 10.75, 16.35, 23.25])
-    expect(rows.map(r => r.momDelta)).toEqual([null, 0.85, 1.05, 1.3, 1.2, 1.3])
-    expect(rows.map(r => r.rolling3mo)).toEqual([1.2, 1.625, 2.1167, 3.1833, 4.3667, 5.6333])
+    expect(rows.map(r => r.monthImpact)).toEqual([1.2, 0.85, 1.05, 1.3, 1.2, 1.3])
+    expect(rows.map(r => r.cumulativeImpact)).toEqual([1.2, 2.05, 3.1, 4.4, 5.6, 6.9])
+    expect(rows.map(r => r.momDelta)).toEqual([null, -0.35, 0.2, 0.25, -0.1, 0.1])
+    expect(rows.map(r => r.rolling3mo)).toEqual([1.2, 1.025, 1.0333, 1.0667, 1.1833, 1.2667])
   })
 
   it('leaderboard ranks the only funded NGO first, without the join fan-out', () => {
     const rows = ngoLeaderboard(s)
     const vidya = rows.find(r => r.ngoId === 1)!
-    expect(vidya.totalImpact).toBe(23.25)
+    expect(vidya.totalImpact).toBe(6.9)
     // The view reported 14,400,000 (6 reports x 2,400,000) until migration 006; the commitment is 2,400,000.
     expect(vidya.totalFunded).toBe(2_400_000)
-    expect(vidya.impactPerMillion).toBe(9.6875)
+    expect(vidya.impactPerMillion).toBe(2.875)
     expect([vidya.sectorRank, vidya.overallPercentile]).toEqual([1, 1])
     expect(rows.find(r => r.ngoId === 2)!.sectorRank).toBe(2)
     expect(rows.find(r => r.ngoId === 3)!.overallPercentile).toBe(0)
@@ -269,12 +270,12 @@ describe('double-funding race', () => {
 
 describe('monthly progress', () => {
   it('appends the next month and the timeline window functions recompute', () => {
-    const out = reportImpact(demo(), 1, 8.2, NOW)
+    const out = reportImpact(demo(), 1, 1.4, NOW)
     const rows = esgTimeline(out.state)
     const last = rows.at(-1)!
     expect(last.month).toBe('2026-09-01')
-    expect([last.monthImpact, last.momDelta, last.cumulativeImpact]).toEqual([8.2, 1.3, 31.45])
-    expect(last.rolling3mo).toBeCloseTo((5.6 + 6.9 + 8.2) / 3, 4)
+    expect([last.monthImpact, last.momDelta, last.cumulativeImpact]).toEqual([1.4, 0.1, 8.3])
+    expect(last.rolling3mo).toBeCloseTo((1.2 + 1.3 + 1.4) / 3, 4)
   })
 
   it('refuses to report progress on a project nobody funded', () => {

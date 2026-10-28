@@ -7,7 +7,7 @@ import type {
   CommitArgs, Effect, EsgRow, Guards, LeaderRow, MatchReport, RaceResult, ScorecardRow,
 } from './engine'
 import type {
-  AuditEntry, Commitment, Company, Extraction, FraudScore, FundPhase, ImpactPrediction,
+  AuditEntry, Commitment, Company, Extraction, FraudScore, FundPhase, ImpactPrediction, ImpactReport,
   LedgerEntry, Milestone, Ngo, Project, RiskGrade, Rulebook, SpendingHistory,
 } from './types'
 
@@ -73,6 +73,8 @@ export interface ExchangeApi {
   /** table fund_transactions */
   ledger(): Promise<LedgerEntry[]>
   audit(): Promise<AuditEntry[]>
+  /** table impact_reports: each project's gain, month by month */
+  impactReports(): Promise<ImpactReport[]>
   /** view company_esg_timeline */
   esgTimeline(): Promise<EsgRow[]>
   /** view ngo_leaderboard */

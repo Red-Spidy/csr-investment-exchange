@@ -216,6 +216,10 @@ def create_app(
     def audit(pool: Pool):
         return read(pool, reads.audit)
 
+    @api.get("/impact-reports")
+    def impact_reports(pool: Pool):
+        return read(pool, reads.impact_reports)
+
     @api.get("/esg-timeline")
     def esg_timeline(pool: Pool):
         return read(pool, reads.esg_timeline)

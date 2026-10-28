@@ -49,6 +49,11 @@ export function addDays(d: Date, days: number): Date {
   return new Date(d.getTime() + days * 86_400_000)
 }
 
+/** 6.9, 8, 1.25: at most two decimals, without trailing zeros. */
+export function shortNum(n: number): string {
+  return String(Math.round(n * 100) / 100)
+}
+
 /** toFixed that never prints "-0.00" for a value that rounds to zero. */
 export function fixed(n: number, dp: number): string {
   const out = n.toFixed(dp)

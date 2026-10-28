@@ -149,7 +149,8 @@ export const SEED: DbState = {
 }
 
 /** Monthly progress for project 1, inserted by the seed after the golden path. */
+/** Each month's gain in project 1's attendance rate, in percentage points: +6.9 so far against the +8 promised. */
 export const SEED_IMPACT_REPORTS: [string, number][] = [
-  ['2026-03-01', 1.2], ['2026-04-01', 2.05], ['2026-05-01', 3.1],
-  ['2026-06-01', 4.4], ['2026-07-01', 5.6], ['2026-08-01', 6.9],
+  ['2026-03-01', 1.2], ['2026-04-01', 0.85], ['2026-05-01', 1.05],
+  ['2026-06-01', 1.3], ['2026-07-01', 1.2], ['2026-08-01', 1.3],
 ]

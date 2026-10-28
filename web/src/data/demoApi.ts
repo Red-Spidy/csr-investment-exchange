@@ -65,6 +65,7 @@ export function createDemoApi(): ExchangeApi {
     commitments: async () => db.commitments.map(c => view(c.id)),
     ledger: async () => db.ledger,
     audit: async () => db.audit,
+    impactReports: async () => [...db.impactReports].sort((a, b) => a.projectId - b.projectId || a.periodMonth.localeCompare(b.periodMonth)),
     esgTimeline: async () => esgTimeline(db),
     leaderboard: async () => ngoLeaderboard(db),
 

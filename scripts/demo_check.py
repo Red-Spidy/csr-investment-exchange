@@ -150,7 +150,7 @@ def workflow(c: httpx.Client) -> dict:
 
     print("\nWindow functions")
     before = len(get("/esg-timeline"))
-    check("an NGO's monthly report is accepted", post("/projects/1/impact-reports", {"value": 7.5})["ok"])
+    check("an NGO's monthly report is accepted", post("/projects/1/impact-reports", {"value": 1.4})["ok"])
     check("company_esg_timeline gains the new month", len(get("/esg-timeline")) == before + 1)
 
     print("\nSafeguards")

@@ -121,16 +121,24 @@ def test_sundar_excludes_the_flagged_over_budget_project_with_reasons(seeded: Te
 def test_esg_timeline_matches_the_window_view(seeded: TestClient):
     rows = get(seeded, "/esg-timeline")
     assert [r["month"] for r in rows] == [f"2026-0{m}-01" for m in range(3, 9)]
-    assert [r["cumulativeImpact"] for r in rows] == [1.2, 3.25, 6.35, 10.75, 16.35, 23.25]
-    assert [r["momDelta"] for r in rows] == [None, 0.85, 1.05, 1.3, 1.2, 1.3]
-    assert [r["rolling3mo"] for r in rows] == [1.2, 1.625, 2.1167, 3.1833, 4.3667, 5.6333]
+    assert [r["monthImpact"] for r in rows] == [1.2, 0.85, 1.05, 1.3, 1.2, 1.3]
+    assert [r["cumulativeImpact"] for r in rows] == [1.2, 2.05, 3.1, 4.4, 5.6, 6.9]
+    assert [r["momDelta"] for r in rows] == [None, -0.35, 0.2, 0.25, -0.1, 0.1]
+    assert [r["rolling3mo"] for r in rows] == [1.2, 1.025, 1.0333, 1.0667, 1.1833, 1.2667]
     assert rows[-1]["peersInMonth"] == 1 and rows[-1]["companyName"] == "Meridian Industries Ltd"
+
+
+def test_impact_reports_are_each_months_gain_per_project(seeded: TestClient):
+    rows = get(seeded, "/impact-reports")
+    assert [(r["projectId"], r["periodMonth"], r["metricValue"]) for r in rows] == [
+        (1, f"2026-0{m}-01", v) for m, v in zip(range(3, 9), [1.2, 0.85, 1.05, 1.3, 1.2, 1.3])]
+    assert set(rows[0]) == {"id", "projectId", "periodMonth", "metricValue"}
 
 
 def test_leaderboard_counts_funding_once_not_once_per_report(seeded: TestClient):
     rows = {r["ngoId"]: r for r in get(seeded, "/leaderboard")}
     vidya = rows[1]
-    assert (vidya["totalImpact"], vidya["totalFunded"], vidya["impactPerMillion"]) == (23.25, 2_400_000, 9.6875)
+    assert (vidya["totalImpact"], vidya["totalFunded"], vidya["impactPerMillion"]) == (6.9, 2_400_000, 2.875)
     assert (vidya["sectorRank"], vidya["overallPercentile"]) == (1, 1)
     assert rows[2]["sectorRank"] == 2 and rows[2]["impactPerMillion"] is None
     assert rows[3]["overallPercentile"] == 0

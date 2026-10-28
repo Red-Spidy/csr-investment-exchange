@@ -119,7 +119,11 @@ h3 { font-size: 0.98rem; }
 .extract { margin-top: 0.8rem; }
 .proposal { font-size: 0.95rem; }
 .score__num { font-size: 2.2rem; }
-.progress-report { margin-top: 1.2rem; }
+.progress-report { margin-top: 1.4rem; display: grid; gap: 0.6rem; max-width: 44rem; }
+.progress-report .meter { max-width: 22rem; }
+.progress-report .subhead { margin-top: 0; }
+.share { display: grid; grid-template-columns: minmax(5rem, 9rem) auto; gap: 0.6rem; align-items: center; }
+.section + .impact { margin-top: 2rem; }
 
 /* ---------------------------------------------------------------- funding */
 

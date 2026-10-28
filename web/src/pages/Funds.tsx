@@ -136,7 +136,11 @@ const COMMITMENT_PILL: Record<CommitmentStatus, { tone: 'neem' | 'indigo' | 'mad
 }
 
 /** A commitment's money by phase. `heading` is false on a project page, which already names the project. */
-export function CommitmentBlock({ v, heading = true }: { v: CommitmentView; heading?: boolean }) {
+export function CommitmentBlock({ v, heading = true, measure }: {
+  v: CommitmentView; heading?: boolean
+  /** What a milestone's result is counted in, for the NGO's evidence form. */
+  measure?: string
+}) {
   const { role, to } = usePortal()
   const bands = commitmentBands(v)
   const totals = sumByTone(bands)
@@ -170,7 +174,7 @@ export function CommitmentBlock({ v, heading = true }: { v: CommitmentView; head
           const before = v.phases.filter(x => x.phaseNo < p.phaseNo)
           const blocked = before.some(x => x.status !== 'released')
           return <PhaseCard key={p.id} phase={p} ms={ms} blockedBy={blocked ? before.find(x => x.status !== 'released')! : null}
-            prevMetric={v.milestones.find(m => m.phaseNo === p.phaseNo - 1)?.reportedMetric ?? null} />
+            prevMetric={v.milestones.find(m => m.phaseNo === p.phaseNo - 1)?.reportedMetric ?? null} measure={measure} />
         })}
       </ol>
 
@@ -253,12 +257,12 @@ function EndCommitment({ v, unreleased }: { v: CommitmentView; unreleased: numbe
 }
 
 /** One phase: what it pays, its milestone, and the one action the signed-in role can take on it. */
-export function PhaseCard({ phase, ms, blockedBy, prevMetric }: {
-  phase: FundPhase; ms: Milestone; blockedBy: FundPhase | null; prevMetric: number | null
+export function PhaseCard({ phase, ms, blockedBy, prevMetric, measure }: {
+  phase: FundPhase; ms: Milestone; blockedBy: FundPhase | null; prevMetric: number | null; measure?: string
 }) {
   const { act } = useExchange()
   const { role } = usePortal()
-  const [metric, setMetric] = useState(String(prevMetric ?? 3))
+  const [metric, setMetric] = useState('')
   const label = `Phase ${phase.phaseNo}`
 
   const tone = phase.status === 'released' ? 'released'
@@ -335,9 +339,11 @@ export function PhaseCard({ phase, ms, blockedBy, prevMetric }: {
           }}>
             <Pill tone="linen">Evidence due</Pill>
             <div className="field">
-              <label htmlFor={`m${ms.id}`}>Result achieved</label>
+              <label htmlFor={`m${ms.id}`}>Result achieved so far</label>
               <input id={`m${ms.id}`} className="input" type="number" step="any" inputMode="decimal"
+                aria-describedby={`m${ms.id}-hint`} placeholder={prevMetric != null ? `Phase ${phase.phaseNo - 1}: ${prevMetric}` : undefined}
                 value={metric} onChange={e => setMetric(e.target.value)} required />
+              <span id={`m${ms.id}-hint`} className="faint small">{measure ?? 'In the measure the proposal promised to move'}</span>
             </div>
             <button className="btn btn--small" type="submit">Submit evidence</button>
           </form>

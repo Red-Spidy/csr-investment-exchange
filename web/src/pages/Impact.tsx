@@ -1,12 +1,16 @@
 import { useMemo, useState, type KeyboardEvent } from 'react'
 import { Link } from 'react-router-dom'
-import { HowItWorks, Kpis, PageHead, Pill, Section, Sql, TableScroll, Loading } from '../components/ui'
+import { HowItWorks, Kpis, Meter, PageHead, Pill, Section, Sql, TableScroll, Loading } from '../components/ui'
+import type { CommitmentView } from '../data/api'
 import type { EsgRow } from '../data/engine'
 import { usePortal } from '../data/portal'
 import { useExchange, useQuery } from '../data/store'
 import { shortCompany } from '../lib/bands'
-import { inrCompact, monthLabel, num } from '../lib/format'
-import { sectorLabel } from '../lib/labels'
+import { inrCompact, monthLabel, num, shortNum } from '../lib/format'
+import type { ImpactReport } from '../data/types'
+import { promisedChange } from '../lib/claim'
+import { metricLabel, sectorLabel, unitShort } from '../lib/labels'
+import { progressSoFar, shareOfPromise } from '../lib/progress'
 
 const WINDOW_SQL = `SUM(month_impact) OVER (PARTITION BY company_id ORDER BY month
       ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW)    AS cumulative_impact,
@@ -26,6 +30,8 @@ export function Impact() {
   const { data: companies } = useQuery(api => api.companies())
   const { data: timeline } = useQuery(api => api.esgTimeline())
   const { data: leaders } = useQuery(api => api.leaderboard())
+  const { data: commitments } = useQuery(api => api.commitments())
+  const { data: reports } = useQuery(api => api.impactReports())
 
   const company = companies?.find(c => c.id === companyId)
   const rows = useMemo(() => (timeline ?? []).filter(r => r.companyId === companyId), [timeline, companyId])
@@ -36,6 +42,7 @@ export function Impact() {
   if (!company || !timeline || !leaders) return <Loading page="Impact">Loading impact</Loading>
   const name = shortCompany(company.name)
 
+  const funded = (commitments ?? []).filter(c => c.commitment.companyId === companyId && c.commitment.status !== 'cancelled')
   const sorted = [...(leaders ?? [])].sort((a, b) => a.sector.localeCompare(b.sector) || a.sectorRank - b.sectorRank)
 
   return (
@@ -45,10 +52,27 @@ export function Impact() {
       {rows.length > 0 && (
         <Kpis items={[
           { label: 'Projects reporting', value: rows.at(-1)!.activeProjects },
-          { label: 'Total progress reported', value: num(rows.at(-1)!.cumulativeImpact, 1) },
+          { label: 'Gains reported, all projects', value: num(rows.at(-1)!.cumulativeImpact, 1) },
           { label: '3-month average', value: num(rows.at(-1)!.rolling3mo, 2) },
           { label: 'Months reported', value: rows.length },
         ]} />
+      )}
+
+      {funded.length > 0 && reports && (
+        <Section id="targets" title="Progress against targets"
+          hint="Each project's monthly gains added up, against what its proposal promised">
+          <TableScroll label="Progress against targets">
+            <table className="table register">
+              <thead>
+                <tr>
+                  <th scope="col">Project</th><th scope="col">Measure</th><th scope="col" className="r">Promised</th>
+                  <th scope="col" className="r">Reported so far</th><th scope="col">Share of the promise</th>
+                </tr>
+              </thead>
+              <tbody>{funded.map(v => <TargetRow key={v.commitment.id} v={v} reports={reports} />)}</tbody>
+            </table>
+          </TableScroll>
+        </Section>
       )}
 
       {rows.length === 0 ? (
@@ -107,6 +131,41 @@ export function Impact() {
         <Sql label="db/migrations/005_views_windows.sql">{WINDOW_SQL}</Sql>
       </HowItWorks>
     </>
+  )
+}
+
+/** One funded project: its reported gains against the change its proposal promised. */
+function TargetRow({ v, reports }: { v: CommitmentView; reports: ImpactReport[] }) {
+  const { to } = usePortal()
+  const { data: d } = useQuery(api => api.projectDetail(v.project.id), [v.project.id])
+  const target = d?.extraction?.targetMetric ?? null
+  const ip = d?.prediction ?? null
+  const unit = target?.unit ?? ip?.metricUnit
+  const name = target?.name ?? ip?.metricName
+  const measured = !!unit && unit !== 'normalised_0_1'
+  const promised = measured ? promisedChange(target) : null
+  const { total, months } = progressSoFar(reports, v.project.id)
+  const share = shareOfPromise(total, promised)
+  const u = measured ? ` ${unitShort(unit!)}` : ''
+  return (
+    <tr>
+      <th scope="row">
+        <Link to={to(`/projects/${v.project.id}`)} className="register__title">{v.project.title}</Link>
+        <span className="faint small">{v.ngoName}</span>
+      </th>
+      <td>{d ? (measured && name ? metricLabel(name) : <span className="faint">No measurable target</span>) : ''}</td>
+      <td className="r num">{promised != null ? `+${shortNum(promised)}${u}` : <span className="faint">None stated</span>}</td>
+      <td className="r num">{months ? `+${shortNum(total)}${u}` : <span className="faint">None yet</span>}
+        {months > 0 && <span className="faint small block">{months} month{months === 1 ? '' : 's'}</span>}</td>
+      <td>
+        {share != null && months > 0 ? (
+          <div className="share">
+            <Meter value={Math.min(1, share)} tone={share >= 1 ? 'neem' : 'indigo'} label={`${v.project.title}: share of the promised gain`} />
+            <span className="num small">{Math.round(share * 100)}%</span>
+          </div>
+        ) : <span className="faint">Not measurable yet</span>}
+      </td>
+    </tr>
   )
 }
 

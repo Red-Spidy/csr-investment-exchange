@@ -192,11 +192,12 @@ UPDATE milestones
        reported_at = now(), reported_metric = 3.10
  WHERE commitment_id = 1 AND phase_no = 1;
 
--- Monthly progress feeding the window-function views.
+-- Monthly progress feeding the window-function views. Each value is that month's gain in
+-- project 1's attendance rate, in percentage points: +6.90 so far against the +8 promised.
 INSERT INTO impact_reports (project_id, period_month, metric_value) VALUES
   (1, DATE '2026-03-01', 1.20),
-  (1, DATE '2026-04-01', 2.05),
-  (1, DATE '2026-05-01', 3.10),
-  (1, DATE '2026-06-01', 4.40),
-  (1, DATE '2026-07-01', 5.60),
-  (1, DATE '2026-08-01', 6.90);
+  (1, DATE '2026-04-01', 0.85),
+  (1, DATE '2026-05-01', 1.05),
+  (1, DATE '2026-06-01', 1.30),
+  (1, DATE '2026-07-01', 1.20),
+  (1, DATE '2026-08-01', 1.30);

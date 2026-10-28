@@ -72,6 +72,10 @@ describe.skipIf(!base)('the live API equals the browser demo on the seeded datab
     expect(await live.esgTimeline()).toEqual(await demo.esgTimeline())
   })
 
+  it('impact_reports', async () => {
+    expect(await live.impactReports()).toEqual(await demo.impactReports())
+  })
+
   it('ngo_leaderboard', async () => {
     expect(await live.leaderboard()).toEqual(await demo.leaderboard())
   })

@@ -7,8 +7,9 @@ import { useExchange, useQuery } from '../data/store'
 import type { SpendingHistory } from '../data/types'
 import { CommitmentBlock } from './Funds'
 import { promisedChange } from '../lib/claim'
-import { inr, inrCompact, num } from '../lib/format'
-import { metricLabel, sdgName, sectorLabel, STATUS_LABEL, unitShort } from '../lib/labels'
+import { inr, inrCompact, num, shortNum } from '../lib/format'
+import { metricLabel, sdgName, sectorLabel, STATUS_LABEL, unitLong, unitShort } from '../lib/labels'
+import { progressSoFar, shareOfPromise } from '../lib/progress'
 
 type Filter = 'all' | 'flagged' | 'approved' | 'funded'
 const FILTERS: { id: Filter; label: string }[] = [
@@ -133,6 +134,10 @@ function ProjectView({ d }: { d: ProjectDetail }) {
   const signals = (heldPhase ? [] : flagSignals(d)).filter(s => role !== 'ngo' || !s.fraud)
   const seesScores = role !== 'ngo'
   const seesFunding = commitment && (role !== 'company' || commitment.commitment.companyId === companyId)
+  // What progress is counted in: the proposal's own target, else the forecast's metric.
+  const metricName = target?.name ?? ip?.metricName
+  const metricUnit = target?.unit ?? ip?.metricUnit
+  const measure = metricName && metricUnit && metricUnit !== 'normalised_0_1' ? { name: metricName, unit: metricUnit } : null
 
   return (
     <article className="detail" aria-labelledby="project-title">
@@ -161,8 +166,10 @@ function ProjectView({ d }: { d: ProjectDetail }) {
 
           {seesFunding && (
             <Section id="funding" title="Funding" hint={fundingHint(commitment)}>
-              <CommitmentBlock v={commitment} heading={false} />
-              {role === 'ngo' && commitment.commitment.status === 'active' && <ProgressReport projectId={p.id} />}
+              <CommitmentBlock v={commitment} heading={false}
+                measure={measure ? `${metricLabel(measure.name)}, in ${unitLong(measure.unit)} gained since the start` : undefined} />
+              <Progress projectId={p.id} measure={measure} promised={promised}
+                canReport={role === 'ngo' && commitment.commitment.status === 'active'} />
             </Section>
           )}
 
@@ -324,23 +331,58 @@ function Review({ projectId }: { projectId: number }) {
   )
 }
 
-/** What an NGO files each month; the company's impact views recompute from it. */
-function ProgressReport({ projectId }: { projectId: number }) {
+/**
+ * Monthly progress: each report is that month's gain in the project's measure, so the reports
+ * add up to the total gained so far, held against what the proposal promised. Only the NGO
+ * reports; the company and the reviewer see the same totals.
+ */
+function Progress({ projectId, measure, promised, canReport }: {
+  projectId: number
+  measure: { name: string; unit: string } | null
+  promised: number | null
+  canReport: boolean
+}) {
   const { act } = useExchange()
+  const { data: reports } = useQuery(api => api.impactReports())
   const [value, setValue] = useState('')
+  if (!reports) return null
+  const { total, months } = progressSoFar(reports, projectId)
+  const share = shareOfPromise(total, promised)
+  const unit = measure ? unitLong(measure.unit) : ''
+  if (!canReport && months === 0) return null
+
   return (
-    <form className="inline-form progress-report" onSubmit={e => {
-      e.preventDefault()
-      const v = Number(value)
-      if (value && Number.isFinite(v)) act('Monthly progress reported', api => api.reportImpact(projectId, v)).then(r => { if (r.ok) setValue('') })
-    }}>
-      <div className="field">
-        <label htmlFor="progress">Progress this month</label>
-        <input id="progress" className="input" type="number" step="any" inputMode="decimal" required
-          value={value} onChange={e => setValue(e.target.value)} />
-      </div>
-      <button className="btn btn--quiet" type="submit">Report progress</button>
-    </form>
+    <div className="progress-report">
+      <h3 className="subhead">Monthly progress</h3>
+      <p className="small">
+        {months === 0
+          ? `No progress reported yet.${promised != null ? ` The proposal promised +${shortNum(promised)} ${unit}.` : ''}`
+          : `Reported so far: +${shortNum(total)} ${unit} over ${months} month${months === 1 ? '' : 's'}`
+            + (share != null ? `, ${Math.round(share * 100)}% of the +${shortNum(promised!)} promised.` : '.')}
+      </p>
+      {share != null && months > 0 && <Meter value={Math.min(1, share)} tone={share >= 1 ? 'neem' : 'indigo'} label="Share of the promised gain reported" />}
+      {canReport && (
+        <form className="inline-form" onSubmit={e => {
+          e.preventDefault()
+          const v = Number(value)
+          if (value && Number.isFinite(v)) act('Monthly progress reported', api => api.reportImpact(projectId, v)).then(r => { if (r.ok) setValue('') })
+        }}>
+          <div className="field">
+            <label htmlFor="progress">
+              {measure ? `${metricLabel(measure.name)} gained this month (${unit})` : 'Progress this month'}
+            </label>
+            <input id="progress" className="input" type="number" step="any" inputMode="decimal" required
+              value={value} onChange={e => setValue(e.target.value)} />
+          </div>
+          <button className="btn btn--quiet" type="submit">Report progress</button>
+        </form>
+      )}
+      {canReport && (
+        <p className="faint small">
+          Enter only this month's gain, not the total so far. Each report fills the month after your last one.
+        </p>
+      )}
+    </div>
   )
 }
 

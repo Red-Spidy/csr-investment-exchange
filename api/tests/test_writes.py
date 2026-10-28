@@ -214,7 +214,7 @@ def test_a_terminated_projects_leaderboard_funding_is_only_what_was_released(cli
     post(client, "/commitments/1/terminate", {"reason": "NGO withdrew"})
     ngo1 = next(r for r in get(client, "/leaderboard") if r["ngoId"] == 1)
     assert ngo1["totalFunded"] == 800_000
-    assert ngo1["impactPerMillion"] == pytest.approx(23.25 / 800_000 * 1e6, abs=1e-3)
+    assert ngo1["impactPerMillion"] == pytest.approx(6.9 / 800_000 * 1e6, abs=1e-3)
 
 
 def test_a_commitment_can_only_be_terminated_once(client: TestClient):
@@ -282,15 +282,15 @@ def test_a_later_release_does_not_complete_a_commitment_while_a_phase_is_held(cl
 # ---------------------------------------------------------------- monthly progress
 
 def test_reporting_progress_appends_the_next_month_and_the_windows_recompute(client: TestClient):
-    res = post(client, "/projects/1/impact-reports", {"value": 8.2})
+    res = post(client, "/projects/1/impact-reports", {"value": 1.4})
     assert res["ok"] is True
-    assert res["effects"][0]["text"] == "Recorded 8.2 for 2026-09."
-    assert "3-month average is now 6.90 and the running total 31.45" in res["effects"][1]["text"]
+    assert res["effects"][0]["text"] == "Recorded 1.4 for 2026-09."
+    assert "3-month average is now 1.30 and the running total 8.30" in res["effects"][1]["text"]
 
     last = get(client, "/esg-timeline")[-1]
     assert last["month"] == "2026-09-01"
-    assert (last["monthImpact"], last["momDelta"], last["cumulativeImpact"]) == (8.2, 1.3, 31.45)
-    assert last["rolling3mo"] == pytest.approx((5.6 + 6.9 + 8.2) / 3, abs=1e-4)
+    assert (last["monthImpact"], last["momDelta"], last["cumulativeImpact"]) == (1.4, 0.1, 8.3)
+    assert last["rolling3mo"] == pytest.approx((1.2 + 1.3 + 1.4) / 3, abs=1e-4)
 
 
 def test_progress_needs_a_funded_project(client: TestClient):

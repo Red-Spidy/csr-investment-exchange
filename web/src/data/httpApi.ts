@@ -68,6 +68,7 @@ export function createHttpApi(base = '/api'): ExchangeApi {
     commitments: () => get('/commitments'),
     ledger: () => get('/ledger'),
     audit: () => get('/audit'),
+    impactReports: () => get('/impact-reports'),
     esgTimeline: () => get('/esg-timeline'),
     leaderboard: () => get('/leaderboard'),
 

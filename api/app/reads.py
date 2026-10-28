@@ -229,6 +229,14 @@ def audit(conn: Connection) -> list[dict[str, Any]]:
 
 # ---------------------------------------------------------------- window-function views
 
+def impact_reports(conn: Connection) -> list[dict[str, Any]]:
+    """Each project's monthly gains, as the NGO reported them."""
+    rows = conn.execute(
+        "SELECT id, project_id, period_month, metric_value FROM impact_reports ORDER BY project_id, period_month"
+    )
+    return [shape(r) for r in rows]
+
+
 def esg_timeline(conn: Connection) -> list[dict[str, Any]]:
     rows = conn.execute(
         """SELECT company_id, company_name, month, month_impact, active_projects,
