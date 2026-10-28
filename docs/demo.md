@@ -22,6 +22,9 @@ and loads them into the API (about 20 s), so the live submission later answers i
 seconds. The sidebar must say **Connected**; if it says *Offline demo data*, the API is not
 running.
 
+Then run `make rate` (about 2 minutes) so the six seeded monthly updates carry Gemini's
+ratings. Rate before presenting: a reset clears them.
+
 Open one browser tab per party so you never have to sign out mid-demo (each portal has its
 own address):
 
@@ -46,12 +49,15 @@ actions; after acting in another tab, reload it.
 | 3 | **Reviewer**, Queue | Point at *Proposals to decide*. Open **Sanitation block construction**: *Why it is in review* and *Spending check*. | The Isolation Forest caught the NGO's anomalous year: admin 38%, round-number invoices 76%, one vendor 91%. A flag routes it to a person; no model rejects anything. |
 | 4 | **Reviewer**, Queue | Open **Maternal health outreach**. Under **Your decision**, note "baseline confirmed with the district office", **Approve**. | The grade sent it to review; a person decided. A later rescore will not overturn that. |
 | 5 | **Company**, Overview, then Find projects | Show the budget cloth on Overview. On Find projects, show the ranking and *Not eligible*. **Fund this project** on *Maternal health outreach*, then **Commit**. | pgvector ranks inside Postgres: similarity, expected impact, spending record. Funding is one transaction: money locked, phases and milestones created by trigger. |
-| 6 | **Second NGO**, My projects | Reload. Under *Needs you now*, **Submit evidence** for phase 1, then **Submit evidence** on the phase card. | The NGO reports; that moves no money. |
-| 7 | **Reviewer**, Queue | Under *Evidence to verify*: **Verify** (money released) or **Fail** (money held). | No milestone proof, no release. A trigger moves the money; no model is near that path. |
+| 6 | **Second NGO**, My projects | Reload. Under *Needs you now*, **Submit evidence** for phase 1. On the phase card enter the result (say 60) and what was delivered, for example "Antenatal camps ran in 60 villages; ASHA registers record 1,240 check-ups and anaemia screening for 980 women." **Submit evidence**. | The NGO reports in numbers and in its own words. Gemini rates the update 1 to 5 against the bar, the share of the promise that should be reached by now. That moves no money. |
+| 7 | **Reviewer**, Queue | Under *Evidence to verify*, read the NGO's words, the rating and its reason. Then **Verify** (money released) or **Fail** (money held). | The model advises; a person decides. Only the verification fires the trigger that moves the money. |
 | 8 | **Reviewer**, Safeguards | **Race two sessions**. Then **Try it** on each rule. | Two real sessions fund the same project; exactly one wins. The database itself refuses double funding, over-budget commitments and ledger edits. |
-| 9 | **Company**, Impact (switch to Meridian at http://localhost:5173/company/1/impact) | Show the chart and the leaderboard. Optional: as Vidya Foundation (http://localhost:5173/ngo/1/projects/1) **Report progress**, then reload Impact. | Window functions recompute the rolling score and the NGO leaderboard on every read. |
+| 9 | **Company**, Impact (switch to Meridian at http://localhost:5173/company/1/impact) | Show *Progress against targets* (promised, expected by now, reported, latest rating), the chart and the leaderboard. Optional: as Vidya Foundation (http://localhost:5173/ngo/1/projects/1) report 1.4 with a sentence on how you know, then reload Impact. | Each month's gain adds up against the bar; Gemini rates each update. Window functions recompute the rolling score and the leaderboard on every read. |
 
 To start over at any point: reviewer, **Reset demo data** (rebuilds and rescores in about 20 s).
+The six seeded monthly updates start unrated; `make rate` rates them with Gemini (about 2 minutes
+on the free tier, so run it before presenting, not on stage). Without `GEMINI_API_KEY`, or with
+`CSR_RATER=rules`, the rules rate updates instead, and the page says so.
 
 ### The sample proposal in step 2
 

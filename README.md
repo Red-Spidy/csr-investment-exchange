@@ -177,6 +177,11 @@ Built and verified:
   trigger logic to numbers read from this database.
 - `make verify` (`docs/testing.md`): a preflight of the setup, every layer's tests, the offline
   engine against the real API, and `make demo-check` with a 33-step browser journey
+- Progress ratings (`ml/progress/rate.py`, migration 009): with each monthly report and each
+  milestone's evidence the NGO says what happened and how it knows; Gemini rates that 1 (low) to 5
+  (good) against the bar, the share of the promised gain due by now. The reviewer reads the rating
+  beside the NGO's words before verifying; nothing reads the rating to move money. `make rate`
+  rates any update still unrated
 - Synthetic training data: 500 NGOs, 2,000 projects, 2,416 NGO-years of spending, and 2,000
   LLM-written proposals, each checked fact by fact
 - Isolation Forest, XGBoost and three BERT readers, evaluated on held-out NGOs

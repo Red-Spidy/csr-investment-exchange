@@ -12,16 +12,16 @@ that use a server start their own on spare ports. A healthy run ends like this:
 
 ```
 Layer tests: each part on its own
-  ✓ Database: triggers, funding rules, races, window functions, grading  27 passed  (6s)
-  ✓ ML: synthetic world, fraud, impact, BERT readers, scoring pipeline  153 passed  (28s)
-  ✓ API: every route, against a throwaway copy of the database  84 passed  (19s)
-  ✓ Web: unit tests, type check, production build  70 passed | 13 skipped  (1s)
+  ✓ Database: triggers, funding rules, races, window functions, grading  31 passed  (8s)
+  ✓ ML: synthetic world, fraud, impact, BERT readers, scoring pipeline  173 passed  (31s)
+  ✓ API: every route, against a throwaway copy of the database  89 passed  (23s)
+  ✓ Web: unit tests, type check, production build  74 passed | 13 skipped  (1s)
 
 End to end: the product, as the demo uses it
   ✓ Offline engine: the browser's copy of the rules equals the real API  13 passed  (2s)
-  ✓ Demo check: API workflow, every page, browser journey, clean reset  41 of 41 checks  (70s)
+  ✓ Demo check: API workflow, every page, browser journey, clean reset  42 of 42 checks  (71s)
 
-Everything passed in 2m 08s. The demo data is clean and scored.
+Everything passed in 2m 19s. The demo data is clean and scored.
 ```
 
 The 13 skipped web tests are the offline-engine tests; they run in the end-to-end stage,
@@ -33,18 +33,18 @@ where a fresh database is available. Every stage writes its full log to
 | Stage | Run it alone | What it checks |
 |---|---|---|
 | Preflight | `make verify` | Docker, the Postgres container, all 8 migrations applied, demo data scored, the Python packages, the trained models, the frontend packages, Google Chrome. Each failure prints its fix. |
-| Database (27) | `make test-db` | On a throwaway database built from the migrations and the seed: phases and milestones are created by trigger; verifying releases money and failing holds it; double funding is refused by the function, the trigger and the unique index, each on its own, and by two real concurrent sessions; a refused commitment leaves no partial rows; the ledger cannot be edited or deleted; the window-function views; pgvector matching; terminating refunds what was not released, including against a racing verification; the risk grade and the reviewer's decision. |
-| ML (153) | `make test-ml` | The synthetic world is deterministic; the fraud, impact and BERT pipelines; the proposal generator and its fact checker; the scoring pipeline writing real model output into a throwaway database. |
-| API (84) | `make test-api` | Every route, each against its own copy of the database, including a real two-session race. |
-| Web (70) | `make test-web` | The browser's port of the database rules, the claim and milestone rules, the reworded exclusion reasons; then the type check and the production build. |
+| Database (31) | `make test-db` | On a throwaway database built from the migrations and the seed: phases and milestones are created by trigger; verifying releases money and failing holds it; double funding is refused by the function, the trigger and the unique index, each on its own, and by two real concurrent sessions; a refused commitment leaves no partial rows; the ledger cannot be edited or deleted; the window-function views; pgvector matching; terminating refunds what was not released, including against a racing verification; the risk grade and the reviewer's decision; the promised gain behind the progress bar, and that storing a rating never moves money. |
+| ML (173) | `make test-ml` | The synthetic world is deterministic; the fraud, impact and BERT pipelines; the proposal generator and its fact checker; the scoring pipeline writing real model output into a throwaway database; the progress rater (the bar, the 1-5 rules, the caps no model can talk past, reading Gemini's answer). |
+| API (89) | `make test-api` | Every route, each against its own copy of the database, including a real two-session race, and updates rated after they are saved (a failing rater loses nothing). |
+| Web (74) | `make test-web` | The browser's port of the database rules, the claim and milestone rules, the reworded exclusion reasons; then the type check and the production build. |
 | Offline engine (13) | `make test-parity` | The offline fallback gives the same answers as the real API on a freshly seeded database, for reads and for a scripted sequence of writes. |
-| Demo check (41) | `make demo-check` | Rebuilds and scores the database with the models; runs the deck's workflow through the API; renders all 15 portal pages in Chrome; then the browser journey (below); then resets to a clean, scored demo. |
+| Demo check (42) | `make demo-check` | Rebuilds and scores the database with the models; runs the deck's workflow through the API; renders all 15 portal pages in Chrome; then the browser journey (below); then resets to a clean, scored demo. |
 
 **The browser journey** (`web/e2e/journey.mjs`, 33 steps) is the product used the way people
 would use it: each party in its own browser, clicking the real pages. An NGO submits the sample
 proposal and sees its grade but not the fraud screen. The reviewer reads why a project was held
 back, approves one and rejects another. A company funds the approved project and cannot fund it
-twice. The NGO submits evidence, the reviewer verifies it and the money is released. The next
+twice. The NGO submits evidence with its own words, the reviewer reads them beside the rating, and verifying releases the money. The next
 milestone fails, the NGO sees the payment held, and the company ends the commitment for a
 refund. Then the safeguards, a monthly impact report, an NGO trying to open another NGO's
 project, missing projects, and a phone-width pass over every page. Any console error, page error
@@ -112,3 +112,4 @@ Finish with **Reset demo data** in the review console.
 - Model quality on hand-written proposals (`make eval-human`, needs the team's 40 proposals) and
   on another model's writing (`make eval-unseen`, needs `GROQ_API_KEY`).
 - Load: nothing measures many users at once.
+- Gemini itself: the checks use the rules rater so they repeat exactly and never need the network. `make ui-check` on a live `make api` uses Gemini when the key is set.
