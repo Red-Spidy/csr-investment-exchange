@@ -23,10 +23,14 @@ seed:
 	$(PSQL) -f - < db/seed.sql
 	@echo "seed data loaded"
 
+# Runs every file even after a failure, then fails if any did (a bare for loop
+# would report only the last file's result).
+DB_TESTS ?= db/tests
 test-db:
-	@for f in db/tests/*.sql; do echo "== $$f"; $(PSQL) -f - < $$f; done
-	@echo "== db/tests/06_concurrency.sh"; bash db/tests/06_concurrency.sh
-	@echo "== db/tests/09_terminate_race.sh"; bash db/tests/09_terminate_race.sh
+	@fail=0; \
+	for f in $(DB_TESTS)/*.sql; do [ -e "$$f" ] || continue; echo "== $$f"; $(PSQL) -f - < $$f || fail=1; done; \
+	for f in $(DB_TESTS)/*.sh; do [ -e "$$f" ] || continue; echo "== $$f"; bash $$f || fail=1; done; \
+	exit $$fail
 
 test-ml:
 	.venv/bin/python -m pytest -q
